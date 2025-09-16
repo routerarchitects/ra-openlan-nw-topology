@@ -6,7 +6,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-func RegisterRoutes(app *fiber.App, th *handlers.TopologyHandler) {
+func (s *ServerDeps) RegisterRoutes(app *fiber.App, th *handlers.TopologyHandler) {
 	v1 := app.Group("/v1")
 	v1.Get("/topology", th.GetTopology)
 }
