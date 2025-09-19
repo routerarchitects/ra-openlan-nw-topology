@@ -50,6 +50,14 @@ type Config struct {
 	LogJSON       bool   `env:"CGW_LOG_JSON" envDefault:"true"`
 	TLS_CERT      string `env:"TLS_CERT"`
 	TLS_KEY       string `env:"TLS_KEY"`
+
+	// lifecycle event config
+	PrivateEndpoint   string        `env:"CGW_PRIVATE_ENDPOINT"`
+	PublicEndpoint    string        `env:"CGW_PUBLIC_ENDPOINT"`
+	ServiceType       string        `env:"CGW_SERVICE_TYPE" envDefault:"cgw-rest-2"`
+	LifecycleInterval time.Duration `env:"CGW_LIFECYCLE_INTERVAL" envDefault:"5s"`
+	BuildVersion      string        `env:"CGW_BUILD_VERSION" envDefault:"dev"`
+	RequestTimeout    time.Duration `env:"CGW_REQUEST_TIMEOUT" envDefault:"30s"`
 }
 
 func Load() (*Config, error) {

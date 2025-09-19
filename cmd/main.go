@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/natefinch/lumberjack.v2"
 
+	"github.com/router-architects/network-topology-service/adapters/kafka"
 	"github.com/router-architects/network-topology-service/adapters/postgres"
 	"github.com/router-architects/network-topology-service/internal/config"
 	"github.com/router-architects/network-topology-service/internal/http"
@@ -57,9 +58,16 @@ func main() {
 		logger.GetLogger().WithError(err).Fatal("failed to connect postgres")
 	}
 
+	lcProducer, err := kafka.NewProducerForTopic(cfg, cfg.KafkaTopicLifecycle) // for lifecycle events
+	if err != nil {
+		logger.GetLogger().WithError(err).Fatal("failed to init kafka producer (lifecycle)")
+	}
+
+	lifecycleSvc := services.NewLifecycleService(cfg, lcProducer)
+
 	// wire
 	repo := repositories.NewTopologyRepository(pool)
-	svc := services.NewTopologyService(repo, logger.GetLogger())
+	svc := services.NewTopologyService(repo)
 
 	app := fiber.New(fiber.Config{
 		// optional: tune body limits, read/write timeouts are handled by env values for HTTP server if you run behind a reverse proxy
@@ -74,6 +82,10 @@ func main() {
 
 	http.New(app, deps, th)
 	deps.RegisterRoutes(app, th)
+
+	runCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	lifecycleSvc.Start(runCtx)
 
 	err = (&deps).Start(app, *cfg, *pool)
 	if err != nil {

@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"crypto/rand"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 )
@@ -31,4 +33,15 @@ func FromEpochSeconds(sec int64) time.Time { return time.Unix(sec, 0).UTC() }
 // For defensive parsing of epoch query (if ever added).
 func ParseEpoch(s string) (int64, error) {
 	return strconv.ParseInt(s, 10, 64)
+}
+
+func NewUUID() (string, error) {
+	// uuid v4 (fast-n-simple)
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("uuid: %w", err)
+	}
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }

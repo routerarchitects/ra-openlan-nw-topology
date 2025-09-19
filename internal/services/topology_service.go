@@ -20,11 +20,10 @@ type TopologyService interface {
 
 type topologyService struct {
 	repo repositories.TopologyRepository
-	log  logger.Logger
 }
 
-func NewTopologyService(repo repositories.TopologyRepository, l logger.Logger) TopologyService {
-	return &topologyService{repo: repo, log: l}
+func NewTopologyService(repo repositories.TopologyRepository) TopologyService {
+	return &topologyService{repo: repo}
 }
 
 // ---------- Input JSON structures (ssid_data, device_info) ----------
@@ -76,7 +75,7 @@ type faceOut struct {
 
 // main method
 func (s *topologyService) BuildTopology(ctx context.Context, boardID string, at *time.Time, window, drift time.Duration) (models.Topology, error) {
-	log := s.log.WithFields(logger.Fields{"boardId": boardID})
+	log := logger.GetLogger().WithFields(logger.Fields{"boardId": boardID})
 
 	// 1) Resolve effective "at"
 	var atTs int64
