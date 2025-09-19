@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+
+	"github.com/router-architects/network-topology-service/internal/apperrors"
 )
 
 func ParseRFC3339OrUTC(s string) (time.Time, error) {
@@ -39,7 +41,7 @@ func NewUUID() (string, error) {
 	// uuid v4 (fast-n-simple)
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		return "", fmt.Errorf("uuid: %w", err)
+		return "", apperrors.WrapError(apperrors.CodeInternal, "uuid", err)
 	}
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80

@@ -2,81 +2,132 @@ package kafka
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
-	"github.com/router-architects/network-topology-service/internal/config"
-	"github.com/router-architects/network-topology-service/internal/logger"
-	"github.com/router-architects/network-topology-service/internal/models"
-
 	kgo "github.com/segmentio/kafka-go"
+
+	"github.com/router-architects/network-topology-service/internal/apperrors"
+	"github.com/router-architects/network-topology-service/internal/config"
+	internalkafka "github.com/router-architects/network-topology-service/internal/kafka"
+	"github.com/router-architects/network-topology-service/internal/logger"
 )
 
-type channelStore interface {
-	Deliver(uuid string, payload models.KafkaResponse) bool
-	IsEmpty() bool
+var (
+	ErrNoTopics  = errors.New("kafka: no topics registered")
+	ErrNoBrokers = errors.New("kafka: no brokers configured")
+)
+
+type Consumer struct {
+	reader          *kgo.Reader
+	handlerRegistry *internalkafka.HandlerRegistry
 }
 
-type consumer struct {
-	r     *kgo.Reader
-	cfg   *config.Config
-	store channelStore
-}
+func NewConsumer(cfg *config.Config, handlerRegistry *internalkafka.HandlerRegistry) (*Consumer, error) {
+	if cfg == nil {
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "kafka: config is nil", nil)
+	}
+	if handlerRegistry == nil {
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "kafka: registry is nil", nil)
+	}
 
-func NewConsumer(cfg *config.Config, store channelStore) (*consumer, error) {
-	r := kgo.NewReader(kgo.ReaderConfig{
-		Brokers:     cfg.KafkaBrokers,
-		GroupID:     fmt.Sprintf("%s_%d", cfg.KafkaGroupID, time.Now().Unix()), // New group Id everytime to get latest messages
-		Topic:       cfg.KafkaTopicResp,
-		MinBytes:    cfg.KafkaMinBytes,
-		MaxBytes:    cfg.KafkaMaxBytes,
-		Dialer:      &kgo.Dialer{Timeout: cfg.KafkaDialTimeout},
-		StartOffset: kgo.LastOffset,
+	topics := handlerRegistry.Topics()
+	if len(topics) == 0 {
+		return nil, ErrNoTopics
+	}
+	if len(cfg.KafkaBrokers) == 0 {
+		return nil, ErrNoBrokers
+	}
+
+	dialTimeout := cfg.KafkaDialTimeout
+	if dialTimeout <= 0 {
+		dialTimeout = 5 * time.Second
+	}
+
+	maxWait := cfg.KafkaReadTimeout
+	if maxWait <= 0 {
+		maxWait = 1 * time.Second
+	}
+
+	dialer := &kgo.Dialer{
+		Timeout:   dialTimeout,
+		DualStack: true,
+	}
+
+	reader := kgo.NewReader(kgo.ReaderConfig{
+		Brokers:               cfg.KafkaBrokers,
+		GroupID:               cfg.KafkaGroupID,
+		GroupTopics:           cfg.KafkaTopics,
+		Dialer:                dialer,
+		MinBytes:              cfg.KafkaMinBytes,
+		MaxBytes:              cfg.KafkaMaxBytes,
+		CommitInterval:        0, // manual commit after handler success
+		WatchPartitionChanges: true,
+		ReadLagInterval:       -1,
+		StartOffset:           kgo.FirstOffset,
+		MaxWait:               maxWait,
+		ReadBackoffMin:        250 * time.Millisecond,
+		ReadBackoffMax:        2 * time.Second,
 	})
 
-	return &consumer{r: r, cfg: cfg, store: store}, nil
+	return &Consumer{
+		reader:          reader,
+		handlerRegistry: handlerRegistry,
+	}, nil
 }
 
-func (c *consumer) Run(ctx context.Context) {
-	logger.GetLogger().WithFields(logger.Fields{
-		"component": "kafka.consumer",
-		"topic":     c.cfg.KafkaTopicResp,
-	}).Info("kafka consumer started")
-
+func (c *Consumer) Run(ctx context.Context) error {
 	for {
-		m, err := c.r.FetchMessage(ctx)
+		msg, err := c.reader.FetchMessage(ctx)
 		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				logger.GetLogger().WithFields(logger.Fields{"component": "kafka.consumer"}).Warn("context canceled")
-				return
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+				return nil
 			}
-			logger.GetLogger().WithFields(logger.Fields{"component": "kafka.consumer"}).WithError(err).Error("fetch error")
-			time.Sleep(time.Second)
+
+			logger.GetLogger().WithField("component", "kafka.consumer").WithError(err).Error("fetch message failed")
+
+			select {
+			case <-time.After(500 * time.Millisecond):
+			case <-ctx.Done():
+				return nil
+			}
 			continue
 		}
 
-		if c.store.IsEmpty() {
-			// No pending correlations to deliver; commit and skip to avoid backlog.
-			_ = c.r.CommitMessages(ctx, m)
-			continue
-		}
-		logger.GetLogger().Trace("Kafka Message: ", string(m.Value))
-		var resp models.KafkaResponse
-		if err := json.Unmarshal(m.Value, &resp); err != nil {
-			logger.GetLogger().WithFields(logger.Fields{"component": "kafka.consumer", "key": string(m.Key)}).WithError(err).Error("invalid response JSON")
-			_ = c.r.CommitMessages(ctx, m)
+		handler, ok := c.handlerRegistry.HandlerForTopic(msg.Topic)
+		if !ok {
+			logger.GetLogger().WithFields(logger.Fields{
+				"component": "kafka.consumer",
+				"topic":     msg.Topic,
+			}).Warn("no handler registered; committing message")
+			if err := c.reader.CommitMessages(ctx, msg); err != nil {
+				logger.GetLogger().WithField("component", "kafka.consumer").WithError(err).Error("commit failed for unhandled topic")
+			}
 			continue
 		}
 
-		if delivered := c.store.Deliver(resp.UUID, resp); delivered {
-			logger.GetLogger().WithFields(logger.Fields{"component": "kafka.consumer", "uuid": resp.UUID}).Debug("delivered correlated response")
-		} else {
-			logger.GetLogger().WithFields(logger.Fields{"component": "kafka.consumer", "uuid": resp.UUID}).Trace("orphan response (expired/unknown uuid)")
+		if err := handler.Handle(ctx, msg); err != nil {
+			logger.GetLogger().WithFields(logger.Fields{
+				"component": "kafka.consumer",
+				"topic":     msg.Topic,
+			}).WithError(err).Error("handler failed")
+			// do not commit so the message can be retried
+			continue
 		}
-		_ = c.r.CommitMessages(ctx, m)
+
+		if err := c.reader.CommitMessages(ctx, msg); err != nil {
+			logger.GetLogger().WithFields(logger.Fields{
+				"component": "kafka.consumer",
+				"topic":     msg.Topic,
+			}).WithError(err).Error("commit failed")
+		}
 	}
 }
 
-func (c *consumer) Close() error { return c.r.Close() }
+// Close stops the underlying reader.
+func (c *Consumer) Close() error {
+	if c == nil || c.reader == nil {
+		return nil
+	}
+	return c.reader.Close()
+}

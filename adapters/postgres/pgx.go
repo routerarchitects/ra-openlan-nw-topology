@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/router-architects/network-topology-service/internal/apperrors"
 )
 
 type Config struct {
@@ -26,7 +27,7 @@ func NewPool(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
 
 	pcfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		return nil, fmt.Errorf("parse pgx config: %w", err)
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "parse pgx config", err)
 	}
 	if cfg.MaxConns > 0 {
 		pcfg.MaxConns = cfg.MaxConns
@@ -39,7 +40,7 @@ func NewPool(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
 	}
 	p, err := pgxpool.NewWithConfig(ctx, pcfg)
 	if err != nil {
-		return nil, fmt.Errorf("create pgx pool: %w", err)
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "create pgx pool", err)
 	}
 	return p, nil
 }

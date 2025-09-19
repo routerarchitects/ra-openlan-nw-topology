@@ -6,6 +6,13 @@ import (
 	"github.com/caarlos0/env/v11"
 )
 
+type TopicConfig struct {
+	MinBytes       int           `yaml:"min_bytes"`
+	MaxBytes       int           `yaml:"max_bytes"`
+	CommitInterval time.Duration `yaml:"commit_interval"`
+	Concurrency    int           `yaml:"concurrency"`
+}
+
 type Config struct {
 	AppName     string        `env:"APP_NAME" envDefault:"network-topology-service"`
 	AppEnv      string        `env:"APP_ENV" envDefault:"dev"`
@@ -32,6 +39,7 @@ type Config struct {
 	KafkaBrokers         []string      `env:"CGW_KAFKA_BROKERS" envSeparator:","`
 	KafkaTopicCmd        string        `env:"CGW_KAFKA_TOPIC_CMD" envDefault:"CnC"`
 	KafkaTopicResp       string        `env:"CGW_KAFKA_TOPIC_RESP" envDefault:"CnC_Res"`
+	KafkaTopics          []string      `yaml:"CGW_KAFKA_TOPICS" envDefault:"service_events"`
 	KafkaGroupID         string        `env:"CGW_KAFKA_GROUP_ID" envDefault:"cgw-wrapper"`
 	KafkaDialTimeout     time.Duration `env:"CGW_KAFKA_DIAL_TIMEOUT" envDefault:"5s"`
 	KafkaWriteTimeout    time.Duration `env:"CGW_KAFKA_WRITE_TIMEOUT" envDefault:"15s"`
