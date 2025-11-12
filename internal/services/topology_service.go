@@ -196,7 +196,11 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, at 
 	//    - AP faces: include associations whose station is NOT a known BSSID
 	//    - Mesh faces: include associations whose station IS a known BSSID (peer mesh BSSID)
 	//    Also stamp the per-face timestamp in Asia/Kolkata.
-	ist, _ := time.LoadLocation("Asia/Kolkata")
+	ist, err := time.LoadLocation("Asia/Kolkata")
+	if err != nil {
+		log.WithError(err).Warn("failed to load Asia/Kolkata location; using fixed offset")
+		ist = time.FixedZone("IST", 5*60*60+30*60)
+	}
 	meshEdgeSet := map[string]models.MeshEdge{} // dedupe: from|to|ssid|band|channel
 
 	for _, rp := range parsed {

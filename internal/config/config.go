@@ -49,15 +49,16 @@ type Config struct {
 	KafkaAllowAutoCreate bool          `env:"CGW_KAFKA_ALLOW_AUTO_CREATE" envDefault:"true"`
 	KafkaTopicLifecycle  string        `env:"CGW_KAFKA_TOPIC_LIFECYCLE" envDefault:"service_events"`
 
-	LogPath       string `env:"LOG_PATH" envDefault:"/var/log/app/app.log"`
-	LogMaxSizeMB  int    `env:"LOG_MAX_SIZE_MB" envDefault:"50"`
-	LogMaxBackups int    `env:"LOG_MAX_BACKUPS" envDefault:"5"`
-	LogMaxAgeDays int    `env:"LOG_MAX_AGE_DAYS" envDefault:"30"`
-	LogLevel      string `env:"LOG_LEVEL" envDefault:"info"`
-	LogFile       string `env:"CGW_LOG_FILE" envDefault:"cgw-wrapper.log"`
-	LogJSON       bool   `env:"CGW_LOG_JSON" envDefault:"true"`
-	TLS_CERT      string `env:"TLS_CERT"`
-	TLS_KEY       string `env:"TLS_KEY"`
+	LogPath               string `env:"LOG_PATH" envDefault:"/var/log/app/app.log"`
+	LogMaxSizeMB          int    `env:"LOG_MAX_SIZE_MB" envDefault:"50"`
+	LogMaxBackups         int    `env:"LOG_MAX_BACKUPS" envDefault:"5"`
+	LogMaxAgeDays         int    `env:"LOG_MAX_AGE_DAYS" envDefault:"30"`
+	LogLevel              string `env:"LOG_LEVEL" envDefault:"info"`
+	LogFile               string `env:"CGW_LOG_FILE" envDefault:"cgw-wrapper.log"`
+	LogJSON               bool   `env:"CGW_LOG_JSON" envDefault:"true"`
+	TLS_CERT              string `env:"TLS_CERT"`
+	TLS_KEY               string `env:"TLS_KEY"`
+	TokenValidationCACert string `env:"TOKEN_VALIDATION_CA_CERT"`
 
 	// lifecycle event config
 	PrivateEndpoint   string        `env:"CGW_PRIVATE_ENDPOINT"`

@@ -39,6 +39,15 @@ func NewConsumer(cfg *config.Config, handlerRegistry *internalkafka.HandlerRegis
 		return nil, ErrNoBrokers
 	}
 
+	if log := logger.GetLogger(); log != nil {
+		log.WithFields(logger.Fields{
+			"component": "kafka.consumer",
+			"brokers":   cfg.KafkaBrokers,
+			"group_id":  cfg.KafkaGroupID,
+			"topics":    topics,
+		}).Info("initializing kafka consumer")
+	}
+
 	dialTimeout := cfg.KafkaDialTimeout
 	if dialTimeout <= 0 {
 		dialTimeout = 5 * time.Second
@@ -69,6 +78,14 @@ func NewConsumer(cfg *config.Config, handlerRegistry *internalkafka.HandlerRegis
 		ReadBackoffMin:        250 * time.Millisecond,
 		ReadBackoffMax:        2 * time.Second,
 	})
+
+	if log := logger.GetLogger(); log != nil {
+		log.WithFields(logger.Fields{
+			"component": "kafka.consumer",
+			"group_id":  cfg.KafkaGroupID,
+			"topics":    topics,
+		}).Info("kafka consumer ready")
+	}
 
 	return &Consumer{
 		reader:          reader,

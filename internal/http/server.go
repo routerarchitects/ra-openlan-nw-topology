@@ -17,12 +17,14 @@ import (
 	"github.com/router-architects/network-topology-service/internal/http/handlers"
 	"github.com/router-architects/network-topology-service/internal/http/middlewares"
 	"github.com/router-architects/network-topology-service/internal/logger"
+	"github.com/router-architects/network-topology-service/internal/security"
 )
 
 type ServerDeps struct {
 	APIKey         string
 	TopologyWindow time.Duration
 	TopologyDrift  time.Duration
+	TokenValidator security.TokenValidator
 }
 
 func New(app *fiber.App, deps ServerDeps, th *handlers.TopologyHandler) *fiber.App {
@@ -31,7 +33,7 @@ func New(app *fiber.App, deps ServerDeps, th *handlers.TopologyHandler) *fiber.A
 	app.Get("/readyz", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 	// middlewares
 	app.Use(middlewares.RequestLogger())
-	// app.Use(middlewares.APIKeyAuth(deps.APIKey))
+	// app.Use(middlewares.APIKeyAuth(deps.APIKey, deps.TokenValidator))
 
 	// inject window/drift into context locals for handlers
 	app.Use(func(c fiber.Ctx) error {

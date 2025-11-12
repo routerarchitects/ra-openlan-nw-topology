@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/router-architects/network-topology-service/internal/apperrors"
+	"github.com/router-architects/network-topology-service/internal/logger"
 )
 
 type Config struct {
@@ -22,6 +23,17 @@ type Config struct {
 }
 
 func NewPool(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
+	if log := logger.GetLogger(); log != nil {
+		log.WithFields(logger.Fields{
+			"component": "postgres.pool",
+			"host":      cfg.Host,
+			"port":      cfg.Port,
+			"database":  cfg.Database,
+			"max_conns": cfg.MaxConns,
+			"min_conns": cfg.MinConns,
+		}).Info("initializing postgres connection pool")
+	}
+
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Database, cfg.SSLMode)
 
@@ -41,6 +53,16 @@ func NewPool(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
 	p, err := pgxpool.NewWithConfig(ctx, pcfg)
 	if err != nil {
 		return nil, apperrors.WrapError(apperrors.CodeInternal, "create pgx pool", err)
+	}
+	if log := logger.GetLogger(); log != nil {
+		log.WithFields(logger.Fields{
+			"component": "postgres.pool",
+			"host":      cfg.Host,
+			"port":      cfg.Port,
+			"database":  cfg.Database,
+			"max_conns": cfg.MaxConns,
+			"min_conns": cfg.MinConns,
+		}).Info("postgres connection pool ready")
 	}
 	return p, nil
 }

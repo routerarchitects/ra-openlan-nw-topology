@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
+	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/client"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/natefinch/lumberjack.v2"
 
 	kafkaadapter "github.com/router-architects/network-topology-service/adapters/kafka"
 	"github.com/router-architects/network-topology-service/adapters/postgres"
@@ -16,6 +18,7 @@ import (
 	"github.com/router-architects/network-topology-service/internal/kafka"
 	"github.com/router-architects/network-topology-service/internal/logger"
 	"github.com/router-architects/network-topology-service/internal/repositories"
+	"github.com/router-architects/network-topology-service/internal/security"
 	"github.com/router-architects/network-topology-service/internal/services"
 	discoverycomponent "github.com/router-architects/network-topology-service/internal/services/discovery"
 	"github.com/router-architects/network-topology-service/internal/store"
@@ -27,16 +30,9 @@ func main() {
 		panic(err)
 	}
 
-	// logrus + lumberjack
-	ll := &lumberjack.Logger{
-		Filename:   cfg.LogPath,
-		MaxSize:    cfg.LogMaxSizeMB,
-		MaxBackups: cfg.LogMaxBackups,
-		MaxAge:     cfg.LogMaxAgeDays,
-		Compress:   true,
-	}
 	log := logrus.New()
-	log.SetOutput(ll)
+	log.SetOutput(os.Stdout)
+
 	level, _ := logrus.ParseLevel(cfg.LogLevel)
 	log.SetLevel(level)
 	log.SetFormatter(&logrus.JSONFormatter{TimestampFormat: time.RFC3339Nano})
@@ -65,6 +61,28 @@ func main() {
 
 	svcDiscoveryStore := store.NewDiscoveryStore()
 
+	tokenValidationClient := client.New()
+	tokenValidationClient.SetTimeout(5 * time.Second)
+	if cfg.TokenValidationCACert != "" {
+		pemBytes, err := os.ReadFile(cfg.TokenValidationCACert)
+		if err != nil {
+			logger.GetLogger().WithError(err).Fatal("failed to read token validation CA cert")
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pemBytes) {
+			logger.GetLogger().Fatal("failed to parse token validation CA cert")
+		}
+		tokenValidationClient.TLSConfig().RootCAs = pool
+	}
+
+	tokenValidator := security.NewTokenValidator(
+		svcDiscoveryStore,
+		tokenValidationClient,
+		security.ValidatorConfig{
+			Timeout: 3 * time.Second,
+		},
+	)
+
 	cmdProducer, err := kafkaadapter.NewProducerForTopic(cfg, cfg.KafkaTopicCmd)
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to init kafka producer")
@@ -86,7 +104,7 @@ func main() {
 
 	consumer, err := kafkaadapter.NewConsumer(cfg, handlerRegistry)
 	if err != nil {
-		logger.GetLogger().WithError(err).Fatal("failed to init kafka consumer")
+		logger.GetLogger().WithError(err).Info("failed to init kafka consumer")
 	}
 
 	lifecycleService := services.NewLifecycleService(cfg, lifecycleProducer)
@@ -106,6 +124,7 @@ func main() {
 		APIKey:         cfg.APIKey,
 		TopologyWindow: cfg.TopologyWindow,
 		TopologyDrift:  cfg.TopologyDrift,
+		TokenValidator: tokenValidator,
 	}
 
 	http.New(app, deps, th)
@@ -113,11 +132,13 @@ func main() {
 
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
-	go func() {
-		if err := consumer.Run(runCtx); err != nil {
-			logger.GetLogger().WithError(err).Error("kafka consumer stopped")
-		}
-	}()
+	if consumer != nil {
+		go func() {
+			if err := consumer.Run(runCtx); err != nil {
+				logger.GetLogger().WithError(err).Error("kafka consumer stopped")
+			}
+		}()
+	}
 	lifecycleService.Start(runCtx)
 
 	err = (&deps).Start(app, *cfg, *pool)
@@ -128,5 +149,7 @@ func main() {
 	runCancel()
 	_ = app.Shutdown()
 	_ = cmdProducer.Close()
-	_ = consumer.Close()
+	if consumer != nil {
+		_ = consumer.Close()
+	}
 }

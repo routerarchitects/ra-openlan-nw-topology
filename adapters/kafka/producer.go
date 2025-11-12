@@ -17,6 +17,13 @@ type producer struct {
 }
 
 func NewProducerForTopic(cfg *config.Config, topic string) (*producer, error) {
+	if log := logger.GetLogger(); log != nil {
+		log.WithFields(logger.Fields{
+			"component": "kafka.producer",
+			"topic":     topic,
+			"brokers":   cfg.KafkaBrokers,
+		}).Info("initializing kafka producer")
+	}
 
 	tr := &kafka.Transport{
 		DialTimeout: 5 * time.Second,
@@ -33,6 +40,13 @@ func NewProducerForTopic(cfg *config.Config, topic string) (*producer, error) {
 		Async:                  false,
 		AllowAutoTopicCreation: cfg.KafkaAllowAutoCreate, // MaxAttempts helps during broker leader elections / restarts.
 		MaxAttempts:            12,
+	}
+
+	if log := logger.GetLogger(); log != nil {
+		log.WithFields(logger.Fields{
+			"component": "kafka.producer",
+			"topic":     topic,
+		}).Info("kafka producer ready")
 	}
 
 	return &producer{w: w, cfg: cfg}, nil
