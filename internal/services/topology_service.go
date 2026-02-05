@@ -175,7 +175,7 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 			// skip offline devices' faces
 			offlineDev := &models.Device{
 				Serial:    serial,
-				Connected: deviceInfoStatus[serial],
+				Connected: false,
 				APs:       []models.Face{},
 				Mesh:      []models.Face{},
 			}
