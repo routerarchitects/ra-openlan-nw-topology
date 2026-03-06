@@ -5,9 +5,9 @@ import (
 	"io"
 
 	"github.com/gofiber/fiber/v3/client"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
+	servicediscovery "github.com/routerarchitects/ow-common-mods/servicediscovery"
 )
 
 type OpenAPIRequestClient interface {
-	Do(ctx context.Context, method string, serviceType string, endPoint string, body io.Reader, services []models.DiscoveryEvent) (*client.Response, error)
+	Do(ctx context.Context, method string, serviceType string, endPoint string, body io.Reader, services []servicediscovery.Instance) (*client.Response, error)
 }

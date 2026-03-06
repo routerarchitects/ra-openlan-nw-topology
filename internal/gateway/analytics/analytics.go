@@ -3,27 +3,29 @@ package analytics
 import (
 	"context"
 	"encoding/json"
-	"sort"
+	"log/slog"
 	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
-	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
+
 	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/services/discovery"
+	servicediscovery "github.com/routerarchitects/ow-common-mods/servicediscovery"
 )
 
 type analyticsClient struct {
-	store  *discovery.DiscoveryStore
+	store  *servicediscovery.Discovery
 	client gateway.OpenAPIRequestClient
+	logger *slog.Logger
 }
 
-func NewAnalyticsClient(client gateway.OpenAPIRequestClient, store *discovery.DiscoveryStore) *analyticsClient {
+func NewAnalyticsClient(client gateway.OpenAPIRequestClient, discovery *servicediscovery.Discovery, logger *slog.Logger) *analyticsClient {
 	return &analyticsClient{
-		store:  store,
+		store:  discovery, // Assuming discovery.Store is accessible and of type *discovery.DiscoveryStore
 		client: client,
+		logger: logger,
 	}
 }
 
@@ -59,25 +61,9 @@ func (v *analyticsClient) GetTimepoints(ctx context.Context, req models.Timepoin
 		fullURL += "LatestPerDevice=true"
 	}
 
-	logFields := logger.Fields{
-		"boardId":        req.BoardID,
-		"statsOnly":      req.StatsOnly,
-		"pointsOnly":     req.PointsOnly,
-		"pointStatsOnly": req.PointStatsOnly,
-	}
-	if req.FromDate != nil {
-		logFields["fromDate"] = *req.FromDate
-	}
-	if req.EndDate != nil {
-		logFields["endDate"] = *req.EndDate
-	}
-	if req.MaxRecords != nil {
-		logFields["maxRecords"] = *req.MaxRecords
-	}
-	log := logger.GetLoggerThreadId("SERVER").WithFields(logFields)
 	start := time.Now()
 
-	services := v.store.GetServices(owanalytics)
+	services := v.store.Store().GetServiceInstances(owanalytics)
 
 	resp, err := v.client.Do(ctx, fiber.MethodGet, "owanalytics", fullURL, nil, services)
 
@@ -86,7 +72,7 @@ func (v *analyticsClient) GetTimepoints(ctx context.Context, req models.Timepoin
 	}
 
 	if resp.StatusCode() == fiber.StatusNotFound {
-		log.WithField("status", resp.StatusCode()).Error("timepoints not found")
+		v.logger.With("status", resp.StatusCode()).Error("timepoints not found")
 		info := apperrors.GetHTTPErrorInfo(apperrors.CodeNotFound)
 		return nil, apperrors.WrapError(apperrors.CodeNotFound, info.Description, nil)
 	}
@@ -110,16 +96,8 @@ func (v *analyticsClient) GetTimepoints(ctx context.Context, req models.Timepoin
 		}
 		timepoints = append(timepoints, bucket...)
 	}
-	// Keep the timepoints ordered with the most recent timestamp first.
-	sort.Slice(timepoints, func(i, j int) bool {
-		return timepoints[i].Timestamp > timepoints[j].Timestamp
-	})
 
-	log.WithFields(logger.Fields{
-		"records":     len(timepoints),
-		"status":      resp.StatusCode(),
-		"duration_ms": time.Since(start).Milliseconds(),
-	}).Trace("received timepoints response")
+	v.logger.With("records", len(timepoints), "status", resp.StatusCode(), "duration_ms", time.Since(start).Milliseconds()).Info("received timepoints response")
 
 	return timepoints, nil
 
@@ -129,7 +107,7 @@ func (v *analyticsClient) GetDeviceInfo(ctx context.Context, boardId string) ([]
 	// Placeholder for future implementation
 	fullURL := "/api/v1/board/" + boardId + "/devices"
 
-	services := v.store.GetServices(owanalytics)
+	services := v.store.Store().GetServiceInstances(owanalytics)
 
 	resp, err := v.client.Do(ctx, fiber.MethodGet, "owanalytics", fullURL, nil, services)
 

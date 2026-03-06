@@ -2,45 +2,47 @@ package security
 
 import (
 	"context"
+	"log/slog"
 	"net/url"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
+	servicediscovery "github.com/routerarchitects/ow-common-mods/servicediscovery"
 
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
-	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
+
 	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/services/discovery"
 )
 
 // TokenValidator validates subscription tokens against an upstream security service.
 
 type owsecValidator struct {
-	store  *discovery.DiscoveryStore
+	store  *servicediscovery.Discovery
 	client gateway.OpenAPIRequestClient
+	logger *slog.Logger
 }
 
 const (
 	owsecService = "owsec"
 )
 
-func NewTokenValidator(client gateway.OpenAPIRequestClient, store *discovery.DiscoveryStore) *owsecValidator {
+func NewTokenValidator(discovery *servicediscovery.Discovery, client gateway.OpenAPIRequestClient, logger *slog.Logger) *owsecValidator {
 
 	return &owsecValidator{
-		store:  store,
+		store:  discovery,
 		client: client,
+		logger: logger,
 	}
 }
 
 func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
-	log := logger.GetLoggerThreadId("SERVER")
 	token := strings.TrimSpace(rawToken)
 	if token == "" {
 		info := apperrors.GetHTTPErrorInfo(apperrors.CodeUnauthorized)
 		return apperrors.WrapError(apperrors.CodeUnauthorized, info.Description, nil)
 	}
 
-	services := v.store.GetServices(owsecService)
+	services := v.store.Store().GetServiceInstances(owsecService)
 
 	validateSubTokenURL := "/api/v1/validateSubToken?token=" + url.QueryEscape(token)
 
@@ -58,13 +60,7 @@ func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
 			defer fallbackResp.Close()
 		}
 		if err != nil {
-			if log != nil {
-				log.WithFields(logger.Fields{
-					"service":   owsecService,
-					"url":       validateTokenURL,
-					"operation": "validateToken",
-				}).WithError(err).Error("validateToken request failed")
-			}
+			v.logger.With("Service", owsecService, "url", validateTokenURL, "operation", "validateToken").Error("validation request Failed")
 			info := apperrors.GetHTTPErrorInfo(apperrors.CodeUnauthorized)
 			return apperrors.WrapError(apperrors.CodeUnauthorized, info.Description, err)
 		}

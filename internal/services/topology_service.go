@@ -2,12 +2,12 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
 )
 
@@ -19,10 +19,11 @@ type AnalyticsClientInterface interface {
 
 type topologyService struct {
 	client AnalyticsClientInterface
+	logger *slog.Logger
 }
 
-func NewTopologyService(client AnalyticsClientInterface) *topologyService {
-	return &topologyService{client: client}
+func NewTopologyService(client AnalyticsClientInterface, logger *slog.Logger) *topologyService {
+	return &topologyService{client: client, logger: logger}
 }
 
 // ---------- Internal helpers ----------
@@ -47,10 +48,6 @@ type faceOut struct {
 
 // main method
 func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (models.Topology, error) {
-	log := logger.GetLoggerThreadId("SERVER")
-	if log != nil {
-		log = log.WithFields(logger.Fields{"boardId": boardID})
-	}
 
 	var fromDate uint64
 	var endDate uint64
@@ -71,17 +68,13 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 		PointStatsOnly: false,
 	})
 	if err != nil {
-		if log != nil {
-			log.WithError(err).Error("fetch timepoints failed")
-		}
+		s.logger.Error("fetch timepoints failed")
 		return models.Topology{}, err
 	}
 
 	deviceIno, err := s.client.GetDeviceInfo(ctx, boardID)
 	if err != nil {
-		if log != nil {
-			log.WithError(err).Error("fetch device info failed")
-		}
+		s.logger.Error("fetch device info failed")
 		return models.Topology{}, err
 	}
 	deviceInfoStatus := make(map[string]bool)
@@ -91,9 +84,8 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 
 	// 1) No rows -> empty topology
 	if len(rows) == 0 {
-		if log != nil {
-			log.Trace("no timepoint rows; returning empty topology")
-		}
+
+		s.logger.Info("no timepoint rows; returning empty topology")
 		dev := []models.Device{}
 		for _, m := range deviceIno {
 			dev = append(dev, models.Device{
@@ -116,9 +108,8 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 	// Load IST once
 	ist, tzErr := time.LoadLocation("Asia/Kolkata")
 	if tzErr != nil {
-		if log != nil {
-			log.WithError(tzErr).Warn("failed to load Asia/Kolkata location; using fixed offset")
-		}
+		s.logger.Warn("failed to load Asia/Kolkata location; using fixed offset")
+
 		ist = time.FixedZone("IST", 5*60*60+30*60)
 	}
 
@@ -358,12 +349,7 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 		Edges:     models.TopoEdges{Wired: []any{}, Mesh: meshEdges},
 		External:  []any{},
 	}
-	if log != nil {
-		log.WithFields(logger.Fields{
-			"nodes":      len(out.Nodes),
-			"mesh_edges": len(out.Edges.Mesh),
-		}).Trace("topology built successfully")
-	}
+	s.logger.Info("topology built successfully")
 	return out, nil
 }
 

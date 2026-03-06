@@ -2,15 +2,15 @@ package httpclient
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v3/client"
-
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
-	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
+	servicediscovery "github.com/routerarchitects/ow-common-mods/servicediscovery"
 )
 
 type OpenAPIRequest struct {
@@ -18,6 +18,7 @@ type OpenAPIRequest struct {
 	client       *client.Client
 	timeout      time.Duration
 	internalName string
+	logger       *slog.Logger
 }
 
 type OpenAPIRequestConfig struct {
@@ -29,7 +30,7 @@ const (
 	defaultRequestTimeout = 3 * time.Second
 )
 
-func NewOpenApiRequest(client *client.Client, cfg OpenAPIRequestConfig) *OpenAPIRequest {
+func NewOpenApiRequest(client *client.Client, cfg OpenAPIRequestConfig, logger *slog.Logger) *OpenAPIRequest {
 	timeout := cfg.Timeout
 	if timeout <= 0 {
 		timeout = defaultRequestTimeout
@@ -44,21 +45,16 @@ func NewOpenApiRequest(client *client.Client, cfg OpenAPIRequestConfig) *OpenAPI
 		client:       client,
 		timeout:      timeout,
 		internalName: internalName,
+		logger:       logger,
 	}
 }
 
-func (v *OpenAPIRequest) Do(ctx context.Context, method string, serviceType string, endPoint string, body io.Reader, services []models.DiscoveryEvent) (*client.Response, error) {
-	baseLog := logger.GetLoggerThreadId("SERVER").WithFields(logger.Fields{
-		"serviceType": serviceType,
-		"method":      method,
-		"endpoint":    endPoint,
-	})
-	baseLog.WithField("discovered_services", len(services)).Trace("discovered services for serviceType %s", serviceType)
-
+func (v *OpenAPIRequest) Do(ctx context.Context, method string, serviceType string, endPoint string, body io.Reader, services []servicediscovery.Instance) (*client.Response, error) {
+	//TODO : Correct it when i have one instance of service discovery and i can get the service from there instead of passing it as parameter
+	fmt.Printf("service instances : %+v", services)
 	for _, svc := range services {
 
 		fullURL := strings.TrimSuffix(svc.PrivateEndPoint, "/") + endPoint
-		log := baseLog.WithField("target", fullURL)
 
 		reqCtx, cancel := context.WithTimeout(ctx, v.timeout)
 		defer cancel()
@@ -80,19 +76,13 @@ func (v *OpenAPIRequest) Do(ctx context.Context, method string, serviceType stri
 				SetRawBody(rawBody).
 				SetHeader("Content-Type", "application/json")
 		}
-		start := time.Now()
 
 		resp, err := req.Send()
 
 		if err != nil {
-			return nil, apperrors.WrapError(apperrors.CodeUnauthorized, "unauthorized", err)
+			return nil, apperrors.WrapError(apperrors.CodeInternal, "unauthorized", err)
 		}
-		log.WithFields(logger.Fields{
-			"status":      resp.StatusCode(),
-			"duration_ms": time.Since(start).Milliseconds(),
-		}).Trace("service request completed for serviceType %s", serviceType)
 		return resp, nil
 	}
-	baseLog.Warnf("no services discovered in store for serviceType %s", serviceType)
 	return nil, apperrors.WrapError(apperrors.CodeNotFound, "Not Found", nil)
 }
