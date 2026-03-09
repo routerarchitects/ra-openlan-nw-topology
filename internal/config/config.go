@@ -1,7 +1,10 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"log/slog"
+	"math/rand/v2"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -166,8 +169,8 @@ func GetDiscoveryConfig(cfg Config) servicediscovery.Config {
 		ServiceVersion:    cfg.Discovery.ServiceVersion,
 		PrivateEndpoint:   cfg.Discovery.PrivateEndpoint,
 		PublicEndpoint:    cfg.Discovery.PublicEndpoint,
-		InstanceID:        cfg.Discovery.InstanceID,
-		InstanceKey:       cfg.Discovery.InstanceKey,
+		InstanceID:        uniqueNanoID(),
+		InstanceKey:       sha256Hex(cfg.Discovery.PublicEndpoint),
 		KeepAliveInterval: cfg.Discovery.KeepAliveInterval,
 		ExpiryMultiplier:  cfg.Discovery.ExpiryMultiplier,
 		SweepInterval:     cfg.Discovery.SweepInterval,
@@ -193,4 +196,16 @@ func GetKafkaConfig(cfg Config) kafka.Config {
 			Timeout:      cfg.Kafka.KafkaProducerTimeout,
 		},
 	}
+}
+
+func sha256Hex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
+}
+
+func uniqueNanoID() int64 {
+	n := time.Now().UnixNano() & 0x7fffffffffffffff
+	// low 12 random bits to reduce collision risk across instances
+	r := int64(rand.Uint32() & 0x0fff)
+	return (n &^ 0x0fff) | r
 }

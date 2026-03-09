@@ -109,7 +109,7 @@ func main() {
 	server.RegisterRoutes(app, th)
 
 	if err := discovery.Start(context.Background()); err != nil {
-		panic("failed to start service discovery")
+		panic(fmt.Sprintf("failed to start service discovery : %v", err))
 	}
 
 	err = server.Start(app)
