@@ -55,7 +55,7 @@ func (v *analyticsClient) GetTimepoints(ctx context.Context, req models.Timepoin
 		fullURL += "pointsOnly=true&"
 	}
 	if req.PointStatsOnly {
-		fullURL += "pointStatsOnly=true"
+		fullURL += "pointStatsOnly=true&"
 	}
 	if req.Latest {
 		fullURL += "LatestPerDevice=true"

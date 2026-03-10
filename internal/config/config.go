@@ -59,13 +59,6 @@ type Servicediscovery struct {
 	// PublicEndpoint is the external network address (host:port) accessible to clients, if applicable.
 	PublicEndpoint string `env:"DISCOVERY_PUBLIC_ENDPOINT,required"`
 
-	// InstanceID is an optional stable unique identifier for the instance.
-	// If not provided, a random ID is generated at startup.
-	InstanceID int64 `env:"DISCOVERY_INSTANCE_ID"`
-	// InstanceKey is an optional stable key string for the instance.
-	// If not provided, a random key is generated at startup.
-	InstanceKey string `env:"DISCOVERY_INSTANCE_KEY"`
-
 	// KeepAliveInterval is the duration between sending heartbeat messages to the discovery topic.
 	KeepAliveInterval time.Duration `env:"DISCOVERY_KEEPALIVE_INTERVAL" envDefault:"5s"`
 	// ExpiryMultiplier determines the timeout for considering an instance offline.
