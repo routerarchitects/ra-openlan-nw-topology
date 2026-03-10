@@ -1,18 +1,16 @@
 package api
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/client"
 
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/api/middlewares"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
 )
@@ -28,97 +26,89 @@ type Server struct {
 
 func New(cfg config.ServerConfig, authMiddleware middlewares.TopologyAuthMiddleware, logger *slog.Logger) *Server {
 
-	app := fiber.New()
-
-	app.Get("/livez", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
-	app.Get("/readyz", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
-
-	app.Use(authMiddleware.TopologyAuth)
-
-	app.Use(middlewares.RequestLogger(logger))
-
-	app.Use(func(c fiber.Ctx) error {
-		return c.Next()
-	})
 	server := Server{
 		Crt:            cfg.TLS_CERT,
 		Key:            cfg.TLS_KEY,
 		Port:           cfg.HTTPPort,
 		PrivatePort:    cfg.PrivatePort,
 		AuthMiddleware: authMiddleware,
+		logger:         logger,
 	}
 	return &server
 }
 
-func (s *Server) Start(app *fiber.App) error {
-	fiberClient := client.New()
-	fiberClient.SetTimeout(5 * time.Second)
+func (s *Server) RegisterCommon(app *fiber.App) {
+	app.Get("/livez", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+	app.Use(middlewares.RequestLogger(s.logger))
+}
 
+func (s *Server) Start(app *fiber.App) error {
 	crt := s.Crt
 	key := s.Key
 	if crt == "" || key == "" {
-		panic(fmt.Sprintf("tls certificate and key must not be empty"))
+		return apperrors.WrapError(apperrors.CodeInternal, "tls certificate and key must not be empty", nil)
 	}
 
 	if _, err := os.Stat(crt); err != nil {
-		panic(fmt.Sprintf("tls certificate not found or not readable: %s (%v)", crt, err))
+		return err
 	}
 	if _, err := os.Stat(key); err != nil {
-		panic(fmt.Sprintf("tls key not found or not readable: %s (%v)", key, err))
+		return err
 	}
 
 	cert, err := tls.LoadX509KeyPair(crt, key)
 	if err != nil {
-		panic(fmt.Sprintf("failed to load X509 key pair (cert=%s key=%s): %v", crt, key, err))
+		return err
 	}
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 	}
 
-	port := s.Port
-	addr := fmt.Sprintf(":%d", port)
-
-	ln, err := tls.Listen("tcp", addr, tlsConfig)
+	ln, err := tls.Listen("tcp", fmt.Sprintf(":%d", s.Port), tlsConfig)
 	if err != nil {
-		panic(fmt.Sprintf("failed to start TLS listener on %s: %v", addr, err))
+		return err
 	}
 
-	// ---------- serve + graceful shutdown ----------
+	lnPrivate, err := tls.Listen("tcp", fmt.Sprintf(":%d", s.PrivatePort), tlsConfig)
+	if err != nil {
+		_ = ln.Close()
+		return err
+	}
+
+	errCh := make(chan error, 2)
+
 	go func() {
 		if err := app.Listener(ln); err != nil {
-			s.logger.Error("fiber listener stopped")
+			errCh <- err
 		}
 	}()
 
-	privatePort := s.PrivatePort
-	privateAddr := fmt.Sprintf(":%d", privatePort)
-
-	lnPrivate, err := tls.Listen("tcp", privateAddr, tlsConfig)
-	if err != nil {
-		panic(fmt.Sprintf("failed to start private TLS listener on %s: %v", privateAddr, err))
-	}
-
-	// ---------- serve + graceful shutdown ----------
 	go func() {
 		if err := app.Listener(lnPrivate); err != nil {
-			s.logger.Error("fiber private listener stopped")
+			errCh <- err
 		}
 	}()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
+	defer signal.Stop(stop)
 
-	// Stop accepting new connections and shut down Fiber
-	shutdownCtx, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel2()
-
-	if err := app.Shutdown(); err != nil {
-		s.logger.Error("fiber shutdown error")
+	select {
+	case sig := <-stop:
+		s.logger.Info("shutdown requested", "signal", sig.String())
+	case err := <-errCh:
+		if err != nil {
+			_ = app.Shutdown()
+			return err
+		}
 	}
 
 	_ = ln.Close()
+	_ = lnPrivate.Close()
 
-	<-shutdownCtx.Done()
+	if err := app.Shutdown(); err != nil {
+		return err
+	}
+
 	return nil
 }

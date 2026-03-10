@@ -31,90 +31,95 @@ func main() {
 	}
 
 	logCfg := config.GetLoggerConfig(*cfg)
-	log, shutdown, err := logger.Init(logCfg)
+	rootLog, shutdown, err := logger.Init(logCfg)
 	if err != nil {
 		panic(err)
 	}
 	defer shutdown()
 
-	log = logger.Subsystem("server")
-	log.InfoContext(context.Background(), "subsys log")
-
-	if log == nil {
-		panic("failed to init logger")
+	if rootLog == nil {
+		panic(fmt.Sprintf("logger init returned nil logger"))
 	}
+	rootLog.InfoContext(context.Background(), "logger initialized")
 
-	log.Info("successfully init log level")
-	dicoveryConfig := config.GetDiscoveryConfig(*cfg)
+	serverLog := logger.Subsystem("server")
+	discoveryLog := logger.Subsystem("service-discovery")
+	httpClientLog := logger.Subsystem("http-client")
+	gatewayLog := logger.Subsystem("gateway")
+	serviceLog := logger.Subsystem("topology-service")
+	middlewareLog := logger.Subsystem("middleware")
+
+	discoveryConfig := config.GetDiscoveryConfig(*cfg)
 	kafkaConfig := config.GetKafkaConfig(*cfg)
 
-	log = logger.Subsystem("Service-discovery")
-	discovery, err := servicediscovery.New(dicoveryConfig, kafkaConfig, log)
+	discovery, err := servicediscovery.New(discoveryConfig, kafkaConfig, discoveryLog)
 	if err != nil {
-		log.Error("failed to create discovery", "error", err)
+		panic(fmt.Sprintf("create service discovery: %v", err))
 	}
 
 	fiberClient := client.New()
 	fiberClient.SetTimeout(5 * time.Second)
+
 	if cfg.Server.TLS_ROOTCA != "" {
 		pemBytes, err := os.ReadFile(cfg.Server.TLS_ROOTCA)
 		if err != nil {
-			log.Error("failed to read TLS root CA cert")
+			panic(fmt.Sprintf("read TLS root CA %q: %v", cfg.Server.TLS_ROOTCA, err))
 		}
+
 		pool := x509.NewCertPool()
 		if !pool.AppendCertsFromPEM(pemBytes) {
-			log.Error("failed to parse token validation CA cert")
+			panic(fmt.Sprintf("parse TLS root CA %q: invalid PEM", cfg.Server.TLS_ROOTCA))
 		}
+
 		fiberClient.TLSConfig().RootCAs = pool
 	}
 
-	log = logger.Subsystem("http-client")
-
-	OpenAPIRequestClient := serviceclient.NewOpenApiRequest(
+	openAPIRequestClient := serviceclient.NewOpenApiRequest(
 		fiberClient,
 		serviceclient.OpenAPIRequestConfig{
 			Timeout: 3 * time.Second,
 		},
-		log,
+		httpClientLog,
 	)
-
-	log = logger.Subsystem("gateway")
 
 	tokenValidator := security.NewTokenValidator(
 		discovery,
-		OpenAPIRequestClient,
-		log,
+		openAPIRequestClient,
+		gatewayLog,
 	)
-	analyticsClient := analytics.NewAnalyticsClient(OpenAPIRequestClient, discovery, log)
 
-	log = logger.Subsystem("topology-services")
-	svc := services.NewTopologyService(analyticsClient, log)
+	analyticsClient := analytics.NewAnalyticsClient(
+		openAPIRequestClient,
+		discovery,
+		gatewayLog,
+	)
 
-	app := fiber.New(fiber.Config{
-		ReadTimeout:  time.Second * 10,
-		WriteTimeout: time.Second * 15,
-	})
-	logger_routes.RegisterFiberRoutes(app.Group("/logger"))
+	svc := services.NewTopologyService(analyticsClient, serviceLog)
+	topologyHandler := handlers.NewTopologyHandler(svc)
 
-	th := handlers.NewTopologyHandler(svc)
-
-	log = logger.Subsystem("middleware")
 	authMiddleware := *middlewares.NewTopologyAuthMiddleware(
 		cfg.Discovery.PublicEndpoint,
 		tokenValidator,
-		log,
+		middlewareLog,
 	)
 
-	server := api.New(cfg.Server, authMiddleware, log)
-	server.RegisterRoutes(app, th)
+	server := api.New(cfg.Server, authMiddleware, serverLog)
+
+	app := fiber.New(fiber.Config{
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 15 * time.Second,
+	})
+
+	server.RegisterCommon(app)
+	logger_routes.RegisterFiberRoutes(app.Group("/logger"))
+	server.RegisterRoutes(app, topologyHandler)
 
 	if err := discovery.Start(context.Background()); err != nil {
 		panic(fmt.Sprintf("failed to start service discovery : %v", err))
 	}
 
-	err = server.Start(app)
-	if err != nil {
+	if err := server.Start(app); err != nil {
 		panic(fmt.Sprintf("failed to start server : %v", err))
 	}
-	_ = app.Shutdown()
+
 }
