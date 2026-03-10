@@ -147,6 +147,8 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 		}
 	}
 
+	knownStation := make(map[string]bool)
+
 	// 3) Pass 2: build devices + faces + clients + mesh edges
 	devMap := make(map[string]*models.Device, len(rows))
 	meshEdgeSet := make(map[string]models.MeshEdge) // dedupe: from|to|ssid|band|channel
@@ -167,6 +169,18 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 			Connected: deviceInfoStatus[serial],
 			APs:       []models.Face{},
 			Mesh:      []models.Face{},
+		}
+
+		if deviceInfoStatus[serial] == false {
+			// skip offline devices' faces
+			offlineDev := &models.Device{
+				Serial:    serial,
+				Connected: false,
+				APs:       []models.Face{},
+				Mesh:      []models.Face{},
+			}
+			devMap[serial] = offlineDev
+			continue
 		}
 
 		rowTS := time.Unix(r.Timestamp, 0).In(ist).Format(time.RFC3339)
@@ -198,6 +212,9 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 
 				switch mode {
 				case "ap":
+					if knownStation[st] == true {
+						continue
+					}
 					// Exclude stations that are any known BSSID; only end-devices remain.
 					if _, isBSSID := knownBSSID[st]; isBSSID {
 						continue
@@ -229,6 +246,7 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 						RxRateChwidth: a.RxRate.Chwidth,
 						Fingerprint:   fingerprint,
 					})
+					knownStation[st] = true
 
 				case "mesh":
 					// Include only if peer is a known BSSID -> build directed mesh edge serial->peerOwner
