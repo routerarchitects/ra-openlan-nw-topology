@@ -108,8 +108,6 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 	// Load IST once
 	ist, tzErr := time.LoadLocation("Asia/Kolkata")
 	if tzErr != nil {
-		s.logger.Warn("failed to load Asia/Kolkata location; using fixed offset")
-
 		ist = time.FixedZone("IST", 5*60*60+30*60)
 	}
 

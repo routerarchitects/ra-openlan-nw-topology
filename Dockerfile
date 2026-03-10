@@ -5,14 +5,19 @@
 ############################
 FROM golang:1.25-alpine AS builder
 RUN apk add --no-cache git ca-certificates
-WORKDIR /src
+WORKDIR /src/ra-openlan-nw-topology
 
 # Cache deps
-COPY go.mod go.sum ./
+COPY uttam-repos/ra-openlan-nw-topology/go.mod uttam-repos/ra-openlan-nw-topology/go.sum ./
+# Local module replacements (match go.mod replace paths)
+COPY ra-github-public-repos/ra-common-mods/kafka /ra-github-public-repos/ra-common-mods/kafka
+COPY ra-github-public-repos/ra-common-mods/logger /ra-github-public-repos/ra-common-mods/logger
+COPY ra-github-public-repos/ra-common-mods/logger-routes /ra-github-public-repos/ra-common-mods/logger-routes
+COPY ra-github-public-repos/ow-common-mods/service-discovery /ra-github-public-repos/ow-common-mods/service-discovery
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 # Copy source
-COPY . .
+COPY uttam-repos/ra-openlan-nw-topology/. .
 
 # Build
 ARG MAIN=./cmd            # because you have cmd/main.go
@@ -28,37 +33,26 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -trimpath -ldflags="-s -w" -o "/out/${APP_NAME}" "${MAIN}"
 
 ############################
-# Runtime (Distroless w/ CA certs)
+# Runtime Stage
 ############################
-FROM gcr.io/distroless/base-debian12:nonroot
+FROM alpine:3.20
 
-WORKDIR /app
-ARG APP_NAME=network-topology-service
-COPY --from=builder "/out/${APP_NAME}" "/app/${APP_NAME}"
-
-# include your repo's certs directory (optional if your app uses it)
-COPY certs /app/certs
-
-USER nonroot:nonroot
-EXPOSE 8088 
-ENTRYPOINT ["/app/network-topology-service"]
-
-############################
-# Runtime (Alpine dev shell)
-############################
-FROM alpine:3.20 AS runtime-alpine
-
-# (Optional) bash; alpine already has /bin/sh (ash)
 RUN apk add --no-cache ca-certificates bash curl
 
 WORKDIR /app
-ARG APP_NAME=network-topology-service
-COPY --from=builder "/out/${APP_NAME}" "/app/${APP_NAME}"
-# COPY certs /app/certs
 
-# Drop privileges by creating a user if you like:
+ARG APP_NAME=network-topology-service
+
+# Copy compiled binary
+COPY --from=builder /out/${APP_NAME} /app/${APP_NAME}
+
+# Optional certs
+COPY uttam-repos/ra-openlan-nw-topology/certs /app/certs
+
+# Non-root user
 RUN adduser -D -u 65532 appuser
 USER appuser
 
-EXPOSE 17007
+EXPOSE 8088 17007
+
 ENTRYPOINT ["/app/network-topology-service"]

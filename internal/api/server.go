@@ -43,6 +43,14 @@ func (s *Server) RegisterCommon(app *fiber.App) {
 }
 
 func (s *Server) Start(app *fiber.App) error {
+
+	if s.Port <= 0 || s.PrivatePort <= 0 {
+		return apperrors.WrapError(apperrors.CodeInternal, "invalid ports", nil)
+	}
+	if s.Port == s.PrivatePort {
+		return apperrors.WrapError(apperrors.CodeInternal, "public and private ports must be different", nil)
+	}
+
 	crt := s.Crt
 	key := s.Key
 	if crt == "" || key == "" {

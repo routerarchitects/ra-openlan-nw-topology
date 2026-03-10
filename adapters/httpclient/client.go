@@ -2,7 +2,6 @@ package httpclient
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -51,7 +50,6 @@ func NewOpenApiRequest(client *client.Client, cfg OpenAPIRequestConfig, logger *
 
 func (v *OpenAPIRequest) Do(ctx context.Context, method string, serviceType string, endPoint string, body io.Reader, services []servicediscovery.Instance) (*client.Response, error) {
 	//TODO : Correct it when i have one instance of service discovery and i can get the service from there instead of passing it as parameter
-	fmt.Printf("service instances : %+v", services)
 	for _, svc := range services {
 
 		fullURL := strings.TrimSuffix(svc.PrivateEndPoint, "/") + endPoint
