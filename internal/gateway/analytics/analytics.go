@@ -3,8 +3,10 @@ package analytics
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -156,4 +158,58 @@ func (v *analyticsClient) GetDeviceInfo(ctx context.Context, boardId string) ([]
 	}
 
 	return deviceInfo.Devices, nil
+}
+
+func (v *analyticsClient) GetWifiClientHistoryMACs(ctx context.Context, boardId string, limit, offset int) ([]string, error) {
+
+	fullURL := "/api/v1/wifiClientHistory" +
+		"?macsOnly=true" +
+		"&boardId=" + url.QueryEscape(strings.TrimSpace(boardId)) +
+		"&limit=" + strconv.Itoa(limit) +
+		"&offset=" + strconv.Itoa(offset)
+
+	log := logger.GetLoggerThreadId("SERVER").WithFields(logger.Fields{
+		"boardId":  boardId,
+		"limit":  limit,
+		"offset": offset,
+	})
+
+	start := time.Now()
+
+	services := v.store.GetServices(owanalytics)
+
+	resp, err := v.client.Do(ctx, fiber.MethodGet, owanalytics, fullURL, nil, services)
+	if resp != nil {
+		defer resp.Close()
+	}
+
+	if err != nil {
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "failed to get wifiClientHistory", err)
+	}
+
+	if resp.StatusCode() == fiber.StatusNotFound {
+		info := apperrors.GetHTTPErrorInfo(apperrors.CodeNotFound)
+		return nil, apperrors.WrapError(apperrors.CodeNotFound, info.Description, nil)
+	}
+
+	if resp.StatusCode() != fiber.StatusOK {
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "failed to get wifiClientHistory: non-200 response", nil)
+	}
+
+	type wifiClientHistoryResponse struct {
+		Entries []string `json:"entries"`
+	}
+
+	var out wifiClientHistoryResponse
+	if err := json.Unmarshal(resp.Body(), &out); err != nil {
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "failed to parse wifiClientHistory response", err)
+	}
+
+	log.WithFields(logger.Fields{
+		"entries":     len(out.Entries),
+		"status":      resp.StatusCode(),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}).Trace("received wifiClientHistory response")
+
+	return out.Entries, nil
 }

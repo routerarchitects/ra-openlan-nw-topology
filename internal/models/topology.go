@@ -5,6 +5,7 @@ type Topology struct {
 	BoardID   string    `json:"boardId,omitempty"`
 	Timestamp string    `json:"timestamp,omitempty"` // RFC3339 UTC
 	Nodes     []Device  `json:"nodes,omitempty"`
+	HistoricalDevices []string `json:"historicalDevices,omitempty"`
 	Edges     TopoEdges `json:"edges,omitempty"`
 	External  []any     `json:"external,omitempty"`
 }
@@ -37,6 +38,8 @@ type FaceClient struct {
 	Inactive      int    `json:"inactive"`
 	RxRateBitrate int    `json:"rx_rate_bitrate"`
 	TxRateBitrate int    `json:"tx_rate_bitrate"`
+	RxSpeed int `json:"rx_speed"`
+	TxSpeed int `json:"tx_speed"`
 	RxRateChwidth int    `json:"rx_rate_chwidth"`
 	Fingerprint   string `json:"fingerprint,omitempty"`
 }

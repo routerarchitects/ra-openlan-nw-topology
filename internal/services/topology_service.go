@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"math/rand"
 
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
@@ -15,6 +16,7 @@ import (
 type AnalyticsClientInterface interface {
 	GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointsData, error)
 	GetDeviceInfo(ctx context.Context, boardId string) ([]models.DeviceInfo, error)
+	GetWifiClientHistoryMACs(ctx context.Context, boardId string, limit, offset int) ([]string, error)
 }
 
 type topologyService struct {
@@ -89,6 +91,61 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 		deviceInfoStatus[di.SerialNumber] = di.Connected
 	}
 
+	macs, err := s.client.GetWifiClientHistoryMACs(ctx, boardID, 500, 0)
+	if err != nil {
+		log.WithError(err).Warn("failed to fetch wifi client history")
+	} else {
+		log.WithField("mac_count", len(macs)).Debug("wifi client macs fetched")
+	}
+
+	present := make(map[string]struct{}, 1024)
+
+	for _, r := range rows {
+		for _, f := range r.SSIDData {
+			b := normMAC(f.BSSID)
+			if b != "" {
+				present[b] = struct{}{}
+			}
+
+			for _, a := range f.Associations {
+				st := normMAC(a.Station)
+				if st != "" {
+					present[st] = struct{}{}
+				}
+			}
+		}
+
+		sn := normMAC(r.DeviceInfo.SerialNumber)
+		if sn != "" {
+			present[sn] = struct{}{}
+		}
+
+		sn2 := normMAC(r.Serial)
+		if sn2 != "" {
+			present[sn2] = struct{}{}
+		}
+	}
+
+	historical := make([]string, 0, len(macs))
+	for _, m := range macs {
+		k := normMAC(m)
+		if k == "" {
+			continue
+		}
+
+		if _, ok := present[k]; ok {
+			continue
+		}
+
+		historical = append(historical, k)
+	}
+
+	macsNorm := make([]string, 0, len(macs))
+	for _, m := range macs {
+		macsNorm = append(macsNorm, normMAC(m))
+	}
+	historical = dedupePreserveOrder(historical)
+
 	// 1) No rows -> empty topology
 	if len(rows) == 0 {
 		if log != nil {
@@ -108,6 +165,7 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 			BoardID:   boardID,
 			Timestamp: time.Unix(nowUnix, 0).UTC().Format(time.RFC3339),
 			Nodes:     dev,
+			HistoricalDevices:  dedupePreserveOrder(macsNorm),
 			Edges:     models.TopoEdges{Wired: []any{}, Mesh: []models.MeshEdge{}},
 			External:  []any{},
 		}, nil
@@ -244,6 +302,8 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 						RxRateBitrate: a.RxRate.Bitrate,
 						TxRateBitrate: a.TxRate.Bitrate,
 						RxRateChwidth: a.RxRate.Chwidth,
+						RxSpeed: rand.Intn(51),
+						TxSpeed: rand.Intn(51),
 						Fingerprint:   fingerprint,
 					})
 					knownStation[st] = true
@@ -355,6 +415,7 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 		BoardID:   boardID,
 		Timestamp: time.Unix(nowUnix, 0).UTC().Format(time.RFC3339),
 		Nodes:     devs,
+		HistoricalDevices:  historical,
 		Edges:     models.TopoEdges{Wired: []any{}, Mesh: meshEdges},
 		External:  []any{},
 	}
@@ -368,7 +429,23 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 }
 
 func normMAC(s string) string {
-	return strings.ToLower(strings.TrimSpace(s))
+
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "" {
+		return ""
+	}
+
+	if strings.Contains(s, ":") {
+		return s
+	}
+
+	if len(s) < 12 {
+		return ""
+	}
+
+	return s[0:2] + ":" + s[2:4] + ":" +
+		s[4:6] + ":" + s[6:8] + ":" +
+		s[8:10] + ":" + s[10:12]
 }
 
 func StringPtr(s string) *string {
@@ -381,4 +458,20 @@ func IntrPtr(i int) *int {
 
 func UInt64Ptr(u uint64) *uint64 {
 	return &u
+}
+
+func dedupePreserveOrder(in []string) []string {
+    seen := make(map[string]struct{}, len(in))
+    out := make([]string, 0, len(in))
+    for _, v := range in {
+        if v == "" {
+            continue
+        }
+        if _, ok := seen[v]; ok {
+            continue
+        }
+        seen[v] = struct{}{}
+        out = append(out, v)
+    }
+    return out
 }

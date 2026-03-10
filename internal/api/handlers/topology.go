@@ -39,6 +39,7 @@ func (h *TopologyHandler) GetTopology(c fiber.Ctx) error {
 		}
 		return writeErrorResponse(c, apperrors.CodeInvalidInput)
 	}
+
 	topo, err := h.svc.BuildTopology(c.Context(), params.BoardID)
 	if err != nil {
 		appErr, ok := err.(*apperrors.Error)
