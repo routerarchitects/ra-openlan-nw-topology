@@ -7,8 +7,13 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-func (s *Server) RegisterRoutes(app *fiber.App, th *handlers.TopologyHandler) {
-	v1 := app.Group("/api/v1", s.AuthMiddleware.TopologyAuth)
+func (s *Server) RegisterRoutes(publicApp *fiber.App, privateApp *fiber.App, th *handlers.TopologyHandler) {
+	publicApp.Get("/livez", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+	v1 := publicApp.Group("/api/v1")
 	v1.Get("/topology", th.GetTopology)
-	logger_routes.RegisterFiberRoutes(app.Group("/logger", s.AuthMiddleware.TopologyAuth))
+
+	privateApp.Get("/livez", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+	v2 := privateApp.Group("/api/v1")
+	v2.Get("/topology", th.GetTopology)
+	logger_routes.RegisterFiberRoutes(publicApp.Group("/logger"))
 }

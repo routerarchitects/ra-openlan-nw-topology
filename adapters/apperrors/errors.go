@@ -2,7 +2,8 @@ package apperrors
 
 import (
 	"fmt"
-	"net/http"
+
+	"github.com/gofiber/fiber/v3"
 )
 
 // ErrorCode defines common application error codes.
@@ -49,17 +50,17 @@ type HTTPErrorInfo struct {
 }
 
 var errorInfoMap = map[ErrorCode]HTTPErrorInfo{
-	CodeInvalidInput: {Status: http.StatusBadRequest, Description: "Bad request."},
-	CodeUnauthorized: {Status: http.StatusUnauthorized, Description: "Unauthorized."},
-	CodeForbidden:    {Status: http.StatusForbidden, Description: "Forbidden."},
-	CodeNotFound:     {Status: http.StatusNotFound, Description: "Resource does not exist."},
-	CodeConflict:     {Status: http.StatusConflict, Description: "Conflict."},
-	CodeInternal:     {Status: http.StatusInternalServerError, Description: "Internal Server Error."},
-	CodeUnknown:      {Status: http.StatusInternalServerError, Description: "Internal Server Error."},
+	CodeInvalidInput: {Status: fiber.StatusBadRequest, Description: "Bad request."},
+	CodeUnauthorized: {Status: fiber.StatusUnauthorized, Description: "Unauthorized."},
+	CodeForbidden:    {Status: fiber.StatusForbidden, Description: "Forbidden."},
+	CodeNotFound:     {Status: fiber.StatusNotFound, Description: "Resource does not exist."},
+	CodeConflict:     {Status: fiber.StatusConflict, Description: "Conflict."},
+	CodeInternal:     {Status: fiber.StatusInternalServerError, Description: "Internal Server Error."},
+	CodeUnknown:      {Status: fiber.StatusInternalServerError, Description: "Internal Server Error."},
 }
 
 var defaultHTTPErrorInfo = HTTPErrorInfo{
-	Status:      http.StatusInternalServerError,
+	Status:      fiber.StatusInternalServerError,
 	Description: "Internal Server Error.",
 }
 

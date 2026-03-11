@@ -23,7 +23,7 @@ type analyticsClient struct {
 
 func NewAnalyticsClient(client gateway.OpenAPIRequestClient, discovery *servicediscovery.Discovery, logger *slog.Logger) *analyticsClient {
 	return &analyticsClient{
-		store:  discovery, // Assuming discovery.Store is accessible and of type *discovery.DiscoveryStore
+		store:  discovery, 
 		client: client,
 		logger: logger,
 	}
@@ -48,24 +48,13 @@ func (v *analyticsClient) GetTimepoints(ctx context.Context, req models.Timepoin
 	if req.MaxRecords != nil {
 		fullURL += "maxRecords=" + strconv.Itoa(*req.MaxRecords) + "&"
 	}
-	if req.StatsOnly {
-		fullURL += "statsOnly=true&"
-	}
-	if req.PointsOnly {
-		fullURL += "pointsOnly=true&"
-	}
-	if req.PointStatsOnly {
-		fullURL += "pointStatsOnly=true&"
-	}
-	if req.Latest {
-		fullURL += "LatestPerDevice=true"
-	}
+	fullURL += "statsOnly=true&" + "pointsOnly=true&" + "pointStatsOnly=true&" + "LatestPerDevice=true"
 
 	start := time.Now()
 
 	services := v.store.Store().GetServiceInstances(owanalytics)
 
-	resp, err := v.client.Do(ctx, fiber.MethodGet, "owanalytics", fullURL, nil, services)
+	resp, err := v.client.Do(fiber.MethodGet, "owanalytics", fullURL, nil, services)
 
 	if err != nil {
 		return nil, apperrors.WrapError(apperrors.CodeInternal, "failed to get timepoints", err)
@@ -97,7 +86,7 @@ func (v *analyticsClient) GetTimepoints(ctx context.Context, req models.Timepoin
 		timepoints = append(timepoints, bucket...)
 	}
 
-	v.logger.With("records", len(timepoints), "status", resp.StatusCode(), "duration_ms", time.Since(start).Milliseconds()).Info("received timepoints response")
+	v.logger.With("records", len(timepoints), "status", resp.StatusCode(), "duration_ms", time.Since(start).Milliseconds()).Debug("received timepoints response")
 
 	return timepoints, nil
 
@@ -109,7 +98,7 @@ func (v *analyticsClient) GetDeviceInfo(ctx context.Context, boardId string) ([]
 
 	services := v.store.Store().GetServiceInstances(owanalytics)
 
-	resp, err := v.client.Do(ctx, fiber.MethodGet, "owanalytics", fullURL, nil, services)
+	resp, err := v.client.Do(fiber.MethodGet, "owanalytics", fullURL, nil, services)
 
 	if err != nil {
 		return []models.DeviceInfo{}, apperrors.WrapError(apperrors.CodeInternal, "failed to get device info", err)

@@ -46,7 +46,7 @@ func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
 
 	validateSubTokenURL := "/api/v1/validateSubToken?token=" + url.QueryEscape(token)
 
-	resp, err := v.client.Do(ctx, fiber.MethodGet, owsecService, validateSubTokenURL, nil, services)
+	resp, err := v.client.Do(fiber.MethodGet, owsecService, validateSubTokenURL, nil, services)
 
 	if resp != nil {
 		defer resp.Close()
@@ -55,7 +55,7 @@ func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
 	if err != nil || resp == nil || resp.StatusCode() != fiber.StatusOK {
 		validateTokenURL := "/api/v1/validateToken?token=" + url.QueryEscape(token)
 
-		fallbackResp, err := v.client.Do(ctx, fiber.MethodGet, owsecService, validateTokenURL, nil, services)
+		fallbackResp, err := v.client.Do(fiber.MethodGet, owsecService, validateTokenURL, nil, services)
 		if fallbackResp != nil {
 			defer fallbackResp.Close()
 		}

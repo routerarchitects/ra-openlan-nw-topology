@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/gofiber/fiber/v3"
 
@@ -37,12 +35,15 @@ func New(cfg config.ServerConfig, authMiddleware middlewares.TopologyAuthMiddlew
 	return &server
 }
 
-func (s *Server) RegisterCommon(app *fiber.App) {
-	app.Get("/livez", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
-	app.Use(middlewares.RequestLogger(s.logger))
+func (s *Server) RegisterMiddlewares(publicApp *fiber.App, privateApp *fiber.App, authMiddleware middlewares.TopologyAuthMiddleware) {
+	publicApp.Use(authMiddleware.TopologyPublicAuth)
+	publicApp.Use(middlewares.RequestLogger(s.logger))
+
+	privateApp.Use(authMiddleware.TopologyPrivateAuth)
+	privateApp.Use(middlewares.RequestLogger(s.logger))
 }
 
-func (s *Server) Start(app *fiber.App) error {
+func (s *Server) Start(publicApp *fiber.App, privateApp *fiber.App) error {
 
 	if s.Port <= 0 || s.PrivatePort <= 0 {
 		return apperrors.WrapError(apperrors.CodeInternal, "invalid ports", nil)
@@ -76,45 +77,34 @@ func (s *Server) Start(app *fiber.App) error {
 	if err != nil {
 		return err
 	}
+	defer ln.Close()
 
 	lnPrivate, err := tls.Listen("tcp", fmt.Sprintf(":%d", s.PrivatePort), tlsConfig)
 	if err != nil {
-		_ = ln.Close()
+		return err
+	}
+	defer lnPrivate.Close()
+
+	errCh := make(chan error)
+
+	go func() {
+		if err := publicApp.Listener(ln); err != nil {
+			errCh <- err
+		}
+	}()
+
+	err = <-errCh
+	if err != nil {
 		return err
 	}
 
-	errCh := make(chan error, 2)
-
 	go func() {
-		if err := app.Listener(ln); err != nil {
+		if err := privateApp.Listener(lnPrivate); err != nil {
 			errCh <- err
 		}
 	}()
 
-	go func() {
-		if err := app.Listener(lnPrivate); err != nil {
-			errCh <- err
-		}
-	}()
-
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(stop)
-
-	select {
-	case sig := <-stop:
-		s.logger.Info("shutdown requested", "signal", sig.String())
-	case err := <-errCh:
-		if err != nil {
-			_ = app.Shutdown()
-			return err
-		}
-	}
-
-	_ = ln.Close()
-	_ = lnPrivate.Close()
-
-	if err := app.Shutdown(); err != nil {
+	if err := <-errCh; err != nil {
 		return err
 	}
 

@@ -2,8 +2,11 @@ package httpclient
 
 import (
 	"context"
+	"crypto/x509"
+	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -26,10 +29,27 @@ type OpenAPIRequestConfig struct {
 }
 
 const (
-	defaultRequestTimeout = 3 * time.Second
+	defaultRequestTimeout = 15 * time.Second
 )
 
-func NewOpenApiRequest(client *client.Client, cfg OpenAPIRequestConfig, logger *slog.Logger) *OpenAPIRequest {
+func NewOpenApiRequest(cfg OpenAPIRequestConfig, logger *slog.Logger, tlsRootCA string) *OpenAPIRequest {
+	fiberClient := client.New()
+	fiberClient.SetTimeout(5 * time.Second)
+
+	if tlsRootCA != "" {
+		pemBytes, err := os.ReadFile(tlsRootCA)
+		if err != nil {
+			panic(fmt.Sprintf("read TLS root CA %q: %v", tlsRootCA, err))
+		}
+
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pemBytes) {
+			panic(fmt.Sprintf("parse TLS root CA %q: invalid PEM", tlsRootCA))
+		}
+
+		fiberClient.TLSConfig().RootCAs = pool
+	}
+
 	timeout := cfg.Timeout
 	if timeout <= 0 {
 		timeout = defaultRequestTimeout
@@ -41,20 +61,20 @@ func NewOpenApiRequest(client *client.Client, cfg OpenAPIRequestConfig, logger *
 	}
 
 	return &OpenAPIRequest{
-		client:       client,
+		client:       fiberClient,
 		timeout:      timeout,
 		internalName: internalName,
 		logger:       logger,
 	}
 }
 
-func (v *OpenAPIRequest) Do(ctx context.Context, method string, serviceType string, endPoint string, body io.Reader, services []servicediscovery.Instance) (*client.Response, error) {
+func (v *OpenAPIRequest) Do(method string, serviceType string, endPoint string, body io.Reader, services []servicediscovery.Instance) (*client.Response, error) {
 	//TODO : Correct it when i have one instance of service discovery and i can get the service from there instead of passing it as parameter
 	for _, svc := range services {
 
 		fullURL := strings.TrimSuffix(svc.PrivateEndPoint, "/") + endPoint
 
-		reqCtx, cancel := context.WithTimeout(ctx, v.timeout)
+		reqCtx, cancel := context.WithTimeout(context.Background(), v.timeout)
 		defer cancel()
 
 		req := v.client.R().
