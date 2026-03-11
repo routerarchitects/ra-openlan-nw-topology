@@ -13,8 +13,8 @@ import (
 
 // gateway interface
 type AnalyticsClientInterface interface {
-	GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointsData, error)
-	GetDeviceInfo(ctx context.Context, boardId string) ([]models.DeviceInfo, error)
+	GetTimepoints(req models.TimepointRequest) ([]models.TimepointsData, error)
+	GetDeviceInfo(boardId string) ([]models.DeviceInfo, error)
 }
 
 type topologyService struct {
@@ -57,7 +57,7 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 	nowUnix := time.Now().Unix()
 	maxRecords := 1000
 
-	rows, err := s.client.GetTimepoints(ctx, models.TimepointRequest{
+	rows, err := s.client.GetTimepoints(models.TimepointRequest{
 		BoardID:        boardID,
 		FromDate:       UInt64Ptr(fromDate),
 		EndDate:        UInt64Ptr(endDate),
@@ -72,7 +72,7 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 		return models.Topology{}, err
 	}
 
-	deviceIno, err := s.client.GetDeviceInfo(ctx, boardID)
+	deviceIno, err := s.client.GetDeviceInfo(boardID)
 	if err != nil {
 		s.logger.Error("fetch device info failed")
 		return models.Topology{}, err

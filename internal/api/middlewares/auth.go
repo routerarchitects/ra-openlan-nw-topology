@@ -1,7 +1,6 @@
 package middlewares
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -13,7 +12,7 @@ import (
 )
 
 type TokenValidator interface {
-	Validate(ctx context.Context, token string) error
+	Validate(token string) error
 }
 
 type TopologyAuthMiddleware struct {
@@ -48,7 +47,7 @@ func (t *TopologyAuthMiddleware) TopologyPublicAuth(c fiber.Ctx) error {
 		subToken = strings.TrimSpace(subToken[len(bearerPrefix):])
 	}
 
-	if err := t.TokenValidator.Validate(c.Context(), subToken); err != nil {
+	if err := t.TokenValidator.Validate(subToken); err != nil {
 
 		if appErr, ok := err.(*apperrors.Error); ok {
 			t.logger.With("code", appErr.Code).Error("auth token validation Failed")

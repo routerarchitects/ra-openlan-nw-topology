@@ -15,5 +15,6 @@ func (s *Server) RegisterRoutes(publicApp *fiber.App, privateApp *fiber.App, th 
 	privateApp.Get("/livez", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 	v2 := privateApp.Group("/api/v1")
 	v2.Get("/topology", th.GetTopology)
+
 	logger_routes.RegisterFiberRoutes(publicApp.Group("/logger"))
 }

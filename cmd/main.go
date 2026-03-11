@@ -9,13 +9,12 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	serviceclient "github.com/router-architects/ra-openlan-nw-topology/adapters/httpclient"
+	serviceanalytics "github.com/router-architects/ra-openlan-nw-topology/adapters/service_rpc/analytics"
+	serviceowsec "github.com/router-architects/ra-openlan-nw-topology/adapters/service_rpc/owsec"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/api"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/api/handlers"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/api/middlewares"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/analytics"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/security"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/services"
 
 	servicediscovery "github.com/routerarchitects/ow-common-mods/servicediscovery"
@@ -28,8 +27,7 @@ func main() {
 		panic(err)
 	}
 
-	logCfg := config.GetLoggerConfig(*cfg)
-	rootLog, shutdown, err := logger.Init(logCfg)
+	rootLog, shutdown, err := logger.Init(cfg.Logger.ModuleConfig())
 	if err != nil {
 		panic(err)
 	}
@@ -42,37 +40,33 @@ func main() {
 
 	serverLog := logger.Subsystem("server")
 	discoveryLog := logger.Subsystem("service-discovery")
-	httpClientLog := logger.Subsystem("http-client")
-	gatewayLog := logger.Subsystem("gateway")
+	owsecrpcLog := logger.Subsystem("owsec-service-rpc")
+	analyticsrpcLog := logger.Subsystem("analytics-service-rpc")
 	serviceLog := logger.Subsystem("topology-service")
 	middlewareLog := logger.Subsystem("middleware")
 
-	discoveryConfig := config.GetDiscoveryConfig(*cfg)
-	kafkaConfig := config.GetKafkaConfig(*cfg)
+	discoveryConfig := cfg.Discovery.ModuleConfig()
+	kafkaConfig := cfg.Kafka.ModuleConfig()
 
 	discovery, err := servicediscovery.New(discoveryConfig, kafkaConfig, discoveryLog)
 	if err != nil {
 		panic(fmt.Sprintf("create service discovery: %v", err))
 	}
 
-	openAPIRequestClient := serviceclient.NewOpenApiRequest(
-		serviceclient.OpenAPIRequestConfig{
-			Timeout: 15 * time.Second,
-		},
-		httpClientLog,
+	tokenValidator := serviceowsec.NewValidator(
+		discovery,
+		owsecrpcLog,
 		cfg.Server.TLS_ROOTCA,
+		15*time.Second,
+		cfg.Logger.ServiceName,
 	)
 
-	tokenValidator := security.NewTokenValidator(
+	analyticsClient := serviceanalytics.NewClient(
 		discovery,
-		openAPIRequestClient,
-		gatewayLog,
-	)
-
-	analyticsClient := analytics.NewAnalyticsClient(
-		openAPIRequestClient,
-		discovery,
-		gatewayLog,
+		analyticsrpcLog,
+		cfg.Server.TLS_ROOTCA,
+		15*time.Second,
+		cfg.Logger.ServiceName,
 	)
 
 	svc := services.NewTopologyService(analyticsClient, serviceLog)
@@ -117,6 +111,10 @@ func main() {
 
 	if err := privateApp.Shutdown(); err != nil {
 		rootLog.Error("Forced shutdown")
+	}
+
+	if err := discovery.Stop(context.Background()); err != nil {
+		rootLog.Error("failed to stop service discovery", "error", err)
 	}
 
 }

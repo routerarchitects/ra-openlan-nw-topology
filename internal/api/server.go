@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 
 	"github.com/gofiber/fiber/v3"
 
@@ -77,36 +78,32 @@ func (s *Server) Start(publicApp *fiber.App, privateApp *fiber.App) error {
 	if err != nil {
 		return err
 	}
-	defer ln.Close()
 
 	lnPrivate, err := tls.Listen("tcp", fmt.Sprintf(":%d", s.PrivatePort), tlsConfig)
 	if err != nil {
 		return err
 	}
+	defer ln.Close()
 	defer lnPrivate.Close()
 
-	errCh := make(chan error)
+	var wg sync.WaitGroup
+	wg.Add(2)
 
 	go func() {
+		defer wg.Done()
 		if err := publicApp.Listener(ln); err != nil {
-			errCh <- err
+			s.logger.Error("public server stopped", "port", s.Port, "error", err)
 		}
 	}()
-
-	err = <-errCh
-	if err != nil {
-		return err
-	}
 
 	go func() {
+		defer wg.Done()
 		if err := privateApp.Listener(lnPrivate); err != nil {
-			errCh <- err
+			s.logger.Error("private server stopped", "port", s.PrivatePort, "error", err)
 		}
 	}()
 
-	if err := <-errCh; err != nil {
-		return err
-	}
-
+	s.logger.Info("servers started", "public_port", s.Port, "private_port", s.PrivatePort)
+	wg.Wait()
 	return nil
 }
