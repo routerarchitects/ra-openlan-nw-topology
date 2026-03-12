@@ -2,11 +2,9 @@ package owsec
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/client"
@@ -18,37 +16,17 @@ import (
 const serviceName = "owsec"
 
 type Validator struct {
-	discovery    *servicediscovery.Discovery
-	client       *client.Client
-	timeout      time.Duration
-	internalName string
-	logger       *slog.Logger
+	deps *common.ServiceRPCBase
 }
 
-func NewValidator(
-	discovery *servicediscovery.Discovery,
-	logger *slog.Logger,
-	tlsRootCA string,
-	timeout time.Duration,
-	internalName string,
-) *Validator {
-	timeout = common.NormalizeTimeout(timeout)
-
+func NewValidator(deps *common.ServiceRPCBase) *Validator {
 	return &Validator{
-		discovery:    discovery,
-		client:       common.NewFiberClient(timeout, tlsRootCA),
-		timeout:      timeout,
-		internalName: common.NormalizeInternalName(internalName),
-		logger:       logger,
+		deps: deps,
 	}
 }
 
 func (v *Validator) Validate(rawToken string) error {
 	token := strings.TrimSpace(rawToken)
-	if token == "" {
-		info := apperrors.GetHTTPErrorInfo(apperrors.CodeUnauthorized)
-		return apperrors.WrapError(apperrors.CodeUnauthorized, info.Description, nil)
-	}
 
 	resp, err := v.send(context.Background(), "/api/v1/validateSubToken?token="+url.QueryEscape(token))
 	if resp != nil {
@@ -65,7 +43,7 @@ func (v *Validator) Validate(rawToken string) error {
 	}
 
 	if fallbackErr != nil {
-		v.logger.With("service", serviceName, "operation", "validateToken").Error("validation request failed")
+		v.deps.Logger.With("service", serviceName, "operation", "validateToken").Error("validation request failed")
 		info := apperrors.GetHTTPErrorInfo(apperrors.CodeUnauthorized)
 		return apperrors.WrapError(apperrors.CodeUnauthorized, info.Description, fallbackErr)
 	}
@@ -84,15 +62,15 @@ func (v *Validator) send(ctx context.Context, endpoint string) (*client.Response
 		return nil, err
 	}
 
-	reqCtx, cancel := context.WithTimeout(ctx, v.timeout)
+	reqCtx, cancel := context.WithTimeout(ctx, v.deps.Timeout)
 	defer cancel()
 
-	resp, err := v.client.R().
+	resp, err := v.deps.Client.R().
 		SetContext(reqCtx).
-		SetTimeout(v.timeout).
+		SetTimeout(v.deps.Timeout).
 		SetMethod(fiber.MethodGet).
 		SetHeader("X-API-KEY", service.Key).
-		SetHeader("X-INTERNAL-NAME", v.internalName).
+		SetHeader("X-INTERNAL-NAME", v.deps.InternalName).
 		SetURL(strings.TrimSuffix(service.PrivateEndPoint, "/") + endpoint).
 		Send()
 	if err != nil {
@@ -103,11 +81,11 @@ func (v *Validator) send(ctx context.Context, endpoint string) (*client.Response
 }
 
 func (v *Validator) resolveService() (servicediscovery.Instance, error) {
-	if v.discovery == nil {
+	if v.deps == nil || v.deps.Discovery == nil {
 		return servicediscovery.Instance{}, apperrors.WrapError(apperrors.CodeInternal, "service discovery is not configured", nil)
 	}
 
-	services := v.discovery.Store().GetServiceInstances(serviceName)
+	services := v.deps.Discovery.Store().GetServiceInstances(serviceName)
 	if len(services) == 0 {
 		return servicediscovery.Instance{}, apperrors.WrapError(apperrors.CodeNotFound, http.StatusText(http.StatusNotFound), nil)
 	}

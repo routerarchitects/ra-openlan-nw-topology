@@ -9,8 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	serviceanalytics "github.com/router-architects/ra-openlan-nw-topology/adapters/service_rpc/analytics"
-	serviceowsec "github.com/router-architects/ra-openlan-nw-topology/adapters/service_rpc/owsec"
+	service_rpc "github.com/router-architects/ra-openlan-nw-topology/adapters/service_rpc"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/api"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/api/handlers"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/api/middlewares"
@@ -36,12 +35,12 @@ func main() {
 	if rootLog == nil {
 		panic(fmt.Sprintf("logger init returned nil logger"))
 	}
-	rootLog.InfoContext(context.Background(), "logger initialized")
+	ctx := context.Background()
+	rootLog.InfoContext(ctx, "logger initialized")
 
 	serverLog := logger.Subsystem("server")
 	discoveryLog := logger.Subsystem("service-discovery")
-	owsecrpcLog := logger.Subsystem("owsec-service-rpc")
-	analyticsrpcLog := logger.Subsystem("analytics-service-rpc")
+	serviceRpcLog := logger.Subsystem("service-rpc")
 	serviceLog := logger.Subsystem("topology-service")
 	middlewareLog := logger.Subsystem("middleware")
 
@@ -53,21 +52,19 @@ func main() {
 		panic(fmt.Sprintf("create service discovery: %v", err))
 	}
 
-	tokenValidator := serviceowsec.NewValidator(
+	rpcFactory := service_rpc.NewServiceRpc(
 		discovery,
-		owsecrpcLog,
-		cfg.Server.TLS_ROOTCA,
-		15*time.Second,
-		cfg.Logger.ServiceName,
+		service_rpc.ServiceRpcConfig{
+			TLSRootCA:    cfg.Server.TLS_ROOTCA,
+			Timeout:      15 * time.Second,
+			InternalName: cfg.Logger.ServiceName,
+		},
+		serviceRpcLog,
 	)
 
-	analyticsClient := serviceanalytics.NewClient(
-		discovery,
-		analyticsrpcLog,
-		cfg.Server.TLS_ROOTCA,
-		15*time.Second,
-		cfg.Logger.ServiceName,
-	)
+	tokenValidator := rpcFactory.Validator()
+
+	analyticsClient := rpcFactory.AnalyticsClient()
 
 	svc := services.NewTopologyService(analyticsClient, serviceLog)
 	topologyHandler := handlers.NewTopologyHandler(svc)
@@ -92,7 +89,7 @@ func main() {
 	server.RegisterMiddlewares(publicApp, privateApp, authMiddleware)
 	server.RegisterRoutes(publicApp, privateApp, topologyHandler)
 
-	if err := discovery.Start(context.Background()); err != nil {
+	if err := discovery.Start(ctx); err != nil {
 		panic(fmt.Sprintf("failed to start service discovery : %v", err))
 	}
 
@@ -113,7 +110,7 @@ func main() {
 		rootLog.Error("Forced shutdown")
 	}
 
-	if err := discovery.Stop(context.Background()); err != nil {
+	if err := discovery.Stop(ctx); err != nil {
 		rootLog.Error("failed to stop service discovery", "error", err)
 	}
 

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"log/slog"
 	"sort"
 	"strconv"
@@ -47,7 +46,7 @@ type faceOut struct {
 }
 
 // main method
-func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (models.Topology, error) {
+func (s *topologyService) BuildTopology(boardID string) (models.Topology, error) {
 
 	var fromDate uint64
 	var endDate uint64
@@ -59,9 +58,9 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 
 	rows, err := s.client.GetTimepoints(models.TimepointRequest{
 		BoardID:        boardID,
-		FromDate:       UInt64Ptr(fromDate),
-		EndDate:        UInt64Ptr(endDate),
-		MaxRecords:     IntrPtr(maxRecords),
+		FromDate:       fromDate,
+		EndDate:        endDate,
+		MaxRecords:     maxRecords,
 		Latest:         true,
 		StatsOnly:      false,
 		PointsOnly:     true,
@@ -353,16 +352,4 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 
 func normMAC(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
-}
-
-func StringPtr(s string) *string {
-	return &s
-}
-
-func IntrPtr(i int) *int {
-	return &i
-}
-
-func UInt64Ptr(u uint64) *uint64 {
-	return &u
 }

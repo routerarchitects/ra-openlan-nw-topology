@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,44 +19,23 @@ import (
 
 const serviceName = "owanalytics"
 
-type Client struct {
-	discovery    *servicediscovery.Discovery
-	client       *client.Client
-	timeout      time.Duration
-	internalName string
-	logger       *slog.Logger
+type AnalyticsClient struct {
+	deps *common.ServiceRPCBase
 }
 
-func NewClient(
-	discovery *servicediscovery.Discovery,
-	logger *slog.Logger,
-	tlsRootCA string,
-	timeout time.Duration,
-	internalName string,
-) *Client {
-	timeout = common.NormalizeTimeout(timeout)
-
-	return &Client{
-		discovery:    discovery,
-		client:       common.NewFiberClient(timeout, tlsRootCA),
-		timeout:      timeout,
-		internalName: common.NormalizeInternalName(internalName),
-		logger:       logger,
+func NewAnalyticsClient(deps *common.ServiceRPCBase) *AnalyticsClient {
+	return &AnalyticsClient{
+		deps: deps,
 	}
 }
 
-func (v *Client) GetTimepoints(req models.TimepointRequest) ([]models.TimepointsData, error) {
+func (v *AnalyticsClient) GetTimepoints(req models.TimepointRequest) ([]models.TimepointsData, error) {
 	fullURL := "/api/v1/board/" + req.BoardID + "/timepoints?"
 
-	if req.FromDate != nil {
-		fullURL += "fromDate=" + strconv.FormatUint(*req.FromDate, 10) + "&"
-	}
-	if req.EndDate != nil {
-		fullURL += "endDate=" + strconv.FormatUint(*req.EndDate, 10) + "&"
-	}
-	if req.MaxRecords != nil {
-		fullURL += "maxRecords=" + strconv.Itoa(*req.MaxRecords) + "&"
-	}
+	fullURL += "fromDate=" + strconv.FormatUint(req.FromDate, 10) + "&"
+	fullURL += "endDate=" + strconv.FormatUint(req.EndDate, 10) + "&"
+	fullURL += "maxRecords=" + strconv.Itoa(req.MaxRecords) + "&"
+
 	fullURL += "statsOnly=true&pointsOnly=true&pointStatsOnly=true&LatestPerDevice=true"
 
 	start := time.Now()
@@ -68,7 +46,7 @@ func (v *Client) GetTimepoints(req models.TimepointRequest) ([]models.Timepoints
 	defer resp.Close()
 
 	if resp.StatusCode() == fiber.StatusNotFound {
-		v.logger.With("status", resp.StatusCode()).Error("timepoints not found")
+		v.deps.Logger.With("status", resp.StatusCode()).Error("timepoints not found")
 		info := apperrors.GetHTTPErrorInfo(apperrors.CodeNotFound)
 		return nil, apperrors.WrapError(apperrors.CodeNotFound, info.Description, nil)
 	}
@@ -94,7 +72,7 @@ func (v *Client) GetTimepoints(req models.TimepointRequest) ([]models.Timepoints
 		timepoints = append(timepoints, bucket...)
 	}
 
-	v.logger.With(
+	v.deps.Logger.With(
 		"records", len(timepoints),
 		"status", resp.StatusCode(),
 		"duration_ms", time.Since(start).Milliseconds(),
@@ -103,7 +81,7 @@ func (v *Client) GetTimepoints(req models.TimepointRequest) ([]models.Timepoints
 	return timepoints, nil
 }
 
-func (v *Client) GetDeviceInfo(boardID string) ([]models.DeviceInfo, error) {
+func (v *AnalyticsClient) GetDeviceInfo(boardID string) ([]models.DeviceInfo, error) {
 	resp, err := v.send(context.Background(), fiber.MethodGet, "/api/v1/board/"+boardID+"/devices", nil)
 	if err != nil {
 		return []models.DeviceInfo{}, apperrors.WrapError(apperrors.CodeInternal, "failed to get device info", err)
@@ -131,21 +109,21 @@ func (v *Client) GetDeviceInfo(boardID string) ([]models.DeviceInfo, error) {
 	return payload.Devices, nil
 }
 
-func (v *Client) send(ctx context.Context, method string, endpoint string, body io.Reader) (*client.Response, error) {
+func (v *AnalyticsClient) send(ctx context.Context, method string, endpoint string, body io.Reader) (*client.Response, error) {
 	service, err := v.resolveService()
 	if err != nil {
 		return nil, err
 	}
 
-	reqCtx, cancel := context.WithTimeout(ctx, v.timeout)
+	reqCtx, cancel := context.WithTimeout(ctx, v.deps.Timeout)
 	defer cancel()
 
-	req := v.client.R().
+	req := v.deps.Client.R().
 		SetContext(reqCtx).
-		SetTimeout(v.timeout).
+		SetTimeout(v.deps.Timeout).
 		SetMethod(method).
 		SetHeader("X-API-KEY", service.Key).
-		SetHeader("X-INTERNAL-NAME", v.internalName).
+		SetHeader("X-INTERNAL-NAME", v.deps.InternalName).
 		SetURL(strings.TrimSuffix(service.PrivateEndPoint, "/") + endpoint)
 
 	if body != nil {
@@ -164,12 +142,12 @@ func (v *Client) send(ctx context.Context, method string, endpoint string, body 
 	return resp, nil
 }
 
-func (v *Client) resolveService() (servicediscovery.Instance, error) {
-	if v.discovery == nil {
+func (v *AnalyticsClient) resolveService() (servicediscovery.Instance, error) {
+	if v.deps == nil || v.deps.Discovery == nil {
 		return servicediscovery.Instance{}, apperrors.WrapError(apperrors.CodeInternal, "service discovery is not configured", nil)
 	}
 
-	services := v.discovery.Store().GetServiceInstances(serviceName)
+	services := v.deps.Discovery.Store().GetServiceInstances(serviceName)
 	if len(services) == 0 {
 		return servicediscovery.Instance{}, apperrors.WrapError(apperrors.CodeNotFound, http.StatusText(http.StatusNotFound), nil)
 	}

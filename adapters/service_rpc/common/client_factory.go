@@ -3,17 +3,38 @@ package common
 import (
 	"crypto/x509"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v3/client"
+	servicediscovery "github.com/routerarchitects/ow-common-mods/servicediscovery"
 )
 
-const (
-	DefaultRequestTimeout = 15 * time.Second
-	defaultInternalName   = "nw-topology-service"
-)
+type ServiceRPCBase struct {
+	Discovery    *servicediscovery.Discovery
+	Client       *client.Client
+	Timeout      time.Duration
+	InternalName string
+	Logger       *slog.Logger
+}
+
+func NewServiceRPCBase(
+	discovery *servicediscovery.Discovery,
+	tlsRootCA string,
+	timeout time.Duration,
+	internalName string,
+	Logger *slog.Logger,
+) *ServiceRPCBase {
+	return &ServiceRPCBase{
+		Discovery:    discovery,
+		Client:       NewFiberClient(timeout, tlsRootCA),
+		Timeout:      timeout,
+		InternalName: internalName,
+		Logger:       Logger,
+	}
+}
 
 func NewFiberClient(timeout time.Duration, tlsRootCA string) *client.Client {
 	fiberClient := client.New()
@@ -35,19 +56,4 @@ func NewFiberClient(timeout time.Duration, tlsRootCA string) *client.Client {
 
 	fiberClient.TLSConfig().RootCAs = pool
 	return fiberClient
-}
-
-func NormalizeTimeout(timeout time.Duration) time.Duration {
-	if timeout > 0 {
-		return timeout
-	}
-	return DefaultRequestTimeout
-}
-
-func NormalizeInternalName(name string) string {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return defaultInternalName
-	}
-	return name
 }

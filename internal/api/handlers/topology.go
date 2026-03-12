@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/gofiber/fiber/v3"
@@ -11,7 +10,7 @@ import (
 )
 
 type TopologyService interface {
-	BuildTopology(ctx context.Context, boardID string) (models.Topology, error)
+	BuildTopology(boardID string) (models.Topology, error)
 }
 
 type TopologyHandler struct {
@@ -31,7 +30,7 @@ func (h *TopologyHandler) GetTopology(c fiber.Ctx) error {
 	if params.BoardID == "" {
 		return writeErrorResponse(c, apperrors.CodeInvalidInput)
 	}
-	topo, err := h.svc.BuildTopology(c.Context(), params.BoardID)
+	topo, err := h.svc.BuildTopology(params.BoardID)
 	if err != nil {
 		appErr, ok := err.(*apperrors.Error)
 		if !ok {
