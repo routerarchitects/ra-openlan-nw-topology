@@ -73,12 +73,8 @@ type AssociationRate struct {
 }
 
 type TimepointRequest struct {
-	BoardID        string `json:"boardId"`
-	FromDate       uint64 `json:"fromDate,omitempty"`
-	EndDate        uint64 `json:"endDate,omitempty"`
-	Latest         bool   `json:"latest,omitempty"`
-	MaxRecords     int    `json:"maxRecords,omitempty"`
-	StatsOnly      bool   `json:"statsOnly,omitempty"`
-	PointsOnly     bool   `json:"pointsOnly,omitempty"`
-	PointStatsOnly bool   `json:"pointStatsOnly,omitempty"`
+	BoardID    string `json:"boardId"`
+	FromDate   uint64 `json:"fromDate,omitempty"`
+	EndDate    uint64 `json:"endDate,omitempty"`
+	MaxRecords int    `json:"maxRecords,omitempty"`
 }

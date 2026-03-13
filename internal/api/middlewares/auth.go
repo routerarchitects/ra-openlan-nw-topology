@@ -1,8 +1,6 @@
 package middlewares
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -16,14 +14,14 @@ type TokenValidator interface {
 }
 
 type TopologyAuthMiddleware struct {
-	PublicEndpoint string
+	InstanceKey    string
 	TokenValidator TokenValidator
 	logger         *slog.Logger
 }
 
-func NewTopologyAuthMiddleware(publicEndPoint string, validator TokenValidator, logger *slog.Logger) *TopologyAuthMiddleware {
+func NewTopologyAuthMiddleware(instanceKey string, validator TokenValidator, logger *slog.Logger) *TopologyAuthMiddleware {
 	return &TopologyAuthMiddleware{
-		PublicEndpoint: publicEndPoint,
+		InstanceKey:    strings.TrimSpace(instanceKey),
 		TokenValidator: validator,
 		logger:         logger,
 	}
@@ -64,15 +62,23 @@ func (t *TopologyAuthMiddleware) TopologyPublicAuth(c fiber.Ctx) error {
 }
 
 func (t *TopologyAuthMiddleware) TopologyPrivateAuth(c fiber.Ctx) error {
-
-	got := string(c.Request().Header.Peek("X-API-KEY"))
-	internalHeader := c.Get("X-INTERNAL-NAME")
-	if internalHeader != "" {
-		if got == "" || got != sha256Hex(t.PublicEndpoint) {
-			t.logger.Error("auth internal header mismatch")
-			return writeAuthError(c, apperrors.CodeUnauthorized)
-		}
+	internalHeader := strings.TrimSpace(c.Get("X-INTERNAL-NAME"))
+	if internalHeader == "" {
+		t.logger.Error("internal name header missing")
+		return writeAuthError(c, apperrors.CodeUnauthorized)
 	}
+
+	got := strings.TrimSpace(c.Get("X-API-KEY"))
+	if got == "" {
+		t.logger.Error("api key header missing")
+		return writeAuthError(c, apperrors.CodeUnauthorized)
+	}
+
+	if t.InstanceKey == "" || got != t.InstanceKey {
+		t.logger.Error("auth internal header mismatch")
+		return writeAuthError(c, apperrors.CodeUnauthorized)
+	}
+
 	return c.Next()
 }
 
@@ -84,9 +90,4 @@ func writeAuthError(c fiber.Ctx, code apperrors.ErrorCode) error {
 		"ErrorDetails":     c.Method(),
 	}
 	return c.Status(info.Status).JSON(body)
-}
-
-func sha256Hex(s string) string {
-	sum := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sum[:])
 }

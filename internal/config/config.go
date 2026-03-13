@@ -8,6 +8,7 @@ import (
 
 	"github.com/caarlos0/env/v11"
 	servicediscovery "github.com/routerarchitects/ow-common-mods/servicediscovery"
+	Subsystem "github.com/routerarchitects/ow-common-mods/system-routes"
 	kafka "github.com/routerarchitects/ra-common-mods/kafka"
 	logger "github.com/routerarchitects/ra-common-mods/logger"
 )
@@ -19,6 +20,7 @@ type ServerConfig struct {
 	TLS_CERT    string `env:"INTERNAL_RESTAPI_HOST_CERT"`
 	TLS_KEY     string `env:"INTERNAL_RESTAPI_HOST_KEY"`
 	TLS_ROOTCA  string `env:"INTERNAL_RESTAPI_HOST_ROOTCA"`
+	UI_Endpoint string `env:"SYSTEM_URI_UI"`
 }
 
 type KafkaConfig struct {
@@ -33,11 +35,16 @@ type LoggerConfig struct {
 	logger.Config
 }
 
+type SubsystemConfig struct {
+	Subsystem.Config
+}
+
 type Config struct {
 	Server    ServerConfig
 	Kafka     KafkaConfig
 	Discovery DiscoveryConfig
 	Logger    LoggerConfig
+	Subsystem SubsystemConfig
 }
 
 func Load() (*Config, error) {
@@ -66,6 +73,20 @@ func (c DiscoveryConfig) ModuleConfig() servicediscovery.Config {
 
 func (c KafkaConfig) ModuleConfig() kafka.Config {
 	return c.Config
+}
+
+func (c SubsystemConfig) ModuleConfig(server ServerConfig) Subsystem.Config {
+	cfg := c.Config
+
+	if cfg.UI_EndPoint == "" {
+		cfg.UI_EndPoint = server.UI_Endpoint
+	}
+	
+	if cfg.Server_certificate_path == "" {
+		cfg.Server_certificate_path = server.TLS_CERT
+	}
+
+	return cfg
 }
 
 func sha256Hex(s string) string {

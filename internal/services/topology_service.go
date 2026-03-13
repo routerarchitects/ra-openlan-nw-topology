@@ -25,27 +25,6 @@ func NewTopologyService(client AnalyticsClientInterface, logger *slog.Logger) *t
 	return &topologyService{client: client, logger: logger}
 }
 
-// ---------- Internal helpers ----------
-type rowParsed struct {
-	ts     int64
-	serial string
-	uptime int64
-	faces  []models.SSIDData
-}
-
-type faceKey struct {
-	serial string
-	bssid  string
-	mode   string // ap | mesh
-}
-
-type faceOut struct {
-	face    models.Face
-	ts      int64
-	clients []models.FaceClient
-}
-
-// main method
 func (s *topologyService) BuildTopology(boardID string) (models.Topology, error) {
 
 	var fromDate uint64
@@ -57,14 +36,10 @@ func (s *topologyService) BuildTopology(boardID string) (models.Topology, error)
 	maxRecords := 1000
 
 	rows, err := s.client.GetTimepoints(models.TimepointRequest{
-		BoardID:        boardID,
-		FromDate:       fromDate,
-		EndDate:        endDate,
-		MaxRecords:     maxRecords,
-		Latest:         true,
-		StatsOnly:      false,
-		PointsOnly:     true,
-		PointStatsOnly: false,
+		BoardID:    boardID,
+		FromDate:   fromDate,
+		EndDate:    endDate,
+		MaxRecords: maxRecords,
 	})
 	if err != nil {
 		s.logger.Error("fetch timepoints failed")

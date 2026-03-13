@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -17,6 +18,7 @@ import (
 	"github.com/router-architects/ra-openlan-nw-topology/internal/services"
 
 	servicediscovery "github.com/routerarchitects/ow-common-mods/servicediscovery"
+	Subsystem "github.com/routerarchitects/ow-common-mods/system-routes"
 	logger "github.com/routerarchitects/ra-common-mods/logger"
 )
 
@@ -35,8 +37,9 @@ func main() {
 	if rootLog == nil {
 		panic(fmt.Sprintf("logger init returned nil logger"))
 	}
-	ctx := context.Background()
-	rootLog.InfoContext(ctx, "logger initialized")
+	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	rootLog.InfoContext(context.Background(), "logger initialized")
 
 	serverLog := logger.Subsystem("server")
 	discoveryLog := logger.Subsystem("service-discovery")
@@ -46,6 +49,7 @@ func main() {
 
 	discoveryConfig := cfg.Discovery.ModuleConfig()
 	kafkaConfig := cfg.Kafka.ModuleConfig()
+	subsystemConfig := cfg.Subsystem.ModuleConfig(cfg.Server)
 
 	discovery, err := servicediscovery.New(discoveryConfig, kafkaConfig, discoveryLog)
 	if err != nil {
@@ -70,47 +74,55 @@ func main() {
 	topologyHandler := handlers.NewTopologyHandler(svc)
 
 	authMiddleware := *middlewares.NewTopologyAuthMiddleware(
-		cfg.Discovery.PublicEndpoint,
+		discoveryConfig.InstanceKey,
 		tokenValidator,
 		middlewareLog,
 	)
 
-	server := api.New(cfg.Server, authMiddleware, serverLog)
+	subsystemRoutes := Subsystem.NewSubsytems(subsystemConfig)
 
-	publicApp := fiber.New(fiber.Config{
+	server := api.New(cfg.Server, authMiddleware, serverLog, subsystemRoutes)
+
+	appConfig := fiber.Config{
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 15 * time.Second,
-	})
-	privateApp := fiber.New(fiber.Config{
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 15 * time.Second,
-	})
+	}
+	publicApp := fiber.New(appConfig)
+	privateApp := fiber.New(appConfig)
 
-	server.RegisterMiddlewares(publicApp, privateApp, authMiddleware)
+	server.RegisterMiddlewares(publicApp, privateApp)
 	server.RegisterRoutes(publicApp, privateApp, topologyHandler)
 
 	if err := discovery.Start(ctx); err != nil {
 		panic(fmt.Sprintf("failed to start service discovery : %v", err))
 	}
 
-	if err := server.Start(publicApp, privateApp); err != nil {
+	serverErrCh, err := server.Start(ctx, publicApp, privateApp)
+	if err != nil {
 		panic(fmt.Sprintf("failed to start server : %v", err))
 	}
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt)
+	select {
+	case <-ctx.Done():
+		rootLog.Info("shutdown signal received")
+	case err := <-serverErrCh:
+		if err != nil {
+			rootLog.Error("server exited unexpectedly", "error", err)
+		}
+	}
 
-	<-stop
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	if err := publicApp.Shutdown(); err != nil {
-		rootLog.Error("Forced shutdown")
+		rootLog.Error("forced public shutdown", "error", err)
 	}
 
 	if err := privateApp.Shutdown(); err != nil {
-		rootLog.Error("Forced shutdown")
+		rootLog.Error("forced private shutdown", "error", err)
 	}
 
-	if err := discovery.Stop(ctx); err != nil {
+	if err := discovery.Stop(shutdownCtx); err != nil {
 		rootLog.Error("failed to stop service discovery", "error", err)
 	}
 

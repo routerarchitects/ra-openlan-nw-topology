@@ -2,22 +2,21 @@ module github.com/router-architects/ra-openlan-nw-topology
 
 go 1.25.1
 
-replace github.com/routerarchitects/ra-common-mods/kafka => ./../../ra-github-public-repos/ra-common-mods/kafka
+replace github.com/routerarchitects/ra-common-mods/buildinfo => ./../ra-common-mods/buildinfo
 
-replace github.com/routerarchitects/ra-common-mods/logger => ./../../ra-github-public-repos/ra-common-mods/logger
+replace github.com/routerarchitects/ra-common-mods/kafka => ./../ra-common-mods/kafka
 
-replace github.com/routerarchitects/ow-common-mods/servicediscovery => ./../../ra-github-public-repos/ow-common-mods/service-discovery
+replace github.com/routerarchitects/ra-common-mods/logger => ./../ra-common-mods/logger
 
-replace github.com/routerarchitects/ra-common-mods/logger-routes => ./../../ra-github-public-repos/ra-common-mods/logger-routes
+replace github.com/routerarchitects/ow-common-mods/servicediscovery => ./../ow-common-mods/service-discovery
+
+replace github.com/routerarchitects/ow-common-mods/system-routes => ./../ow-common-mods/system-routes
 
 require (
 	github.com/caarlos0/env/v11 v11.4.0
 	github.com/gofiber/fiber/v3 v3.0.0-rc.3
-	github.com/routerarchitects/ow-common-mods/servicediscovery v0.0.0-00010101000000-000000000000
 	github.com/routerarchitects/ra-common-mods/kafka v0.0.0-00010101000000-000000000000
-	github.com/routerarchitects/ra-common-mods/logger v0.0.0-00010101000000-000000000000
-	github.com/routerarchitects/ra-common-mods/logger-routes v0.0.0-00010101000000-000000000000
-// gopkg.in/natefinch/lumberjack.v2 v2.2.1
+	github.com/routerarchitects/ra-common-mods/logger v0.1.0
 )
 
 require (
@@ -43,21 +42,28 @@ require (
 )
 
 require (
+	github.com/routerarchitects/ow-common-mods/servicediscovery v0.0.0-00010101000000-000000000000
+	github.com/routerarchitects/ow-common-mods/system-routes v0.0.0-00010101000000-000000000000
+// github.com/routerarchitects/ow-common-mods/subsystem-modules v0.0.0-00010101000000-000000000000
+)
+
+require (
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
-	github.com/gofiber/schema v1.6.0 // indirect
-	github.com/gofiber/utils/v2 v2.0.0-rc.2 // indirect
+	github.com/gofiber/schema v1.7.0 // indirect
+	github.com/gofiber/utils/v2 v2.0.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/klauspost/compress v1.18.1 // indirect
+	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
-	github.com/tinylib/msgp v1.5.0 // indirect
+	github.com/routerarchitects/ra-common-mods/buildinfo v0.0.0-00010101000000-000000000000 // indirect
+	github.com/tinylib/msgp v1.6.3 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.68.0 // indirect
+	github.com/valyala/fasthttp v1.69.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
-	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/crypto v0.48.0 // indirect
+	golang.org/x/net v0.50.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 )
