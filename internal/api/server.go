@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/api/middlewares"
@@ -37,6 +38,11 @@ func New(cfg config.ServerConfig, authMiddleware middlewares.TopologyAuthMiddlew
 }
 
 func (s *Server) RegisterMiddlewares(publicApp *fiber.App, privateApp *fiber.App, authMiddleware middlewares.TopologyAuthMiddleware) {
+	publicApp.Use(cors.New(cors.Config{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{"GET,POST,PUT,DELETE,OPTIONS"},
+		AllowHeaders: []string{"Origin", " Content-Type", " Accept", " Authorization"},
+	}))
 	publicApp.Use(authMiddleware.TopologyPublicAuth)
 	publicApp.Use(middlewares.RequestLogger(s.logger))
 

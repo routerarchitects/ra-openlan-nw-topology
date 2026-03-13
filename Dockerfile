@@ -12,7 +12,7 @@ COPY uttam-repos/ra-openlan-nw-topology/go.mod uttam-repos/ra-openlan-nw-topolog
 # Local module replacements (match go.mod replace paths)
 COPY ra-github-public-repos/ra-common-mods/kafka /ra-github-public-repos/ra-common-mods/kafka
 COPY ra-github-public-repos/ra-common-mods/logger /ra-github-public-repos/ra-common-mods/logger
-COPY ra-github-public-repos/ra-common-mods/logger-routes /ra-github-public-repos/ra-common-mods/logger-routes
+COPY ra-github-public-repos/ow-common-mods/loger-routes /ra-github-public-repos/ow-common-mods/loger-routes
 COPY ra-github-public-repos/ow-common-mods/service-discovery /ra-github-public-repos/ow-common-mods/service-discovery
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
