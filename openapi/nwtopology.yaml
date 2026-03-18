@@ -1,0 +1,515 @@
+openapi: 3.0.1
+info:
+  title: OpenWiFi Network Topology Service
+  description: REST API implemented by the network topology service.
+  version: 1.0.0
+
+servers:
+  - url: https://openwifi.wlan.local:16007/api/v1
+    description: Public listener
+  - url: https://openwifi.wlan.local:17007/api/v1
+    description: Private listener
+
+security: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-KEY
+
+  responses:
+    BadRequest:
+      description: Bad request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Forbidden.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Internal server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Success:
+      description: Successful command execution.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SuccessResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - ErrorCode
+        - ErrorDescription
+        - ErrorDetails
+      properties:
+        ErrorCode:
+          type: integer
+          example: 400
+        ErrorDescription:
+          type: string
+          example: '400: Bad request.'
+        ErrorDetails:
+          type: string
+          example: GET
+
+    SuccessResponse:
+      type: object
+      required:
+        - Code
+        - Operation
+        - Details
+      properties:
+        Code:
+          type: integer
+          example: 0
+        Operation:
+          type: string
+          example: POST
+        Details:
+          type: string
+          example: Command completed.
+
+    FaceClient:
+      type: object
+      properties:
+        station:
+          type: string
+          description: Normalized MAC address.
+        rssi:
+          type: integer
+        connected:
+          type: integer
+        inactive:
+          type: integer
+        rx_rate_bitrate:
+          type: integer
+        tx_rate_bitrate:
+          type: integer
+        rx_rate_chwidth:
+          type: integer
+        fingerprint:
+          type: string
+
+    Face:
+      type: object
+      required:
+        - bssid
+        - ssid
+        - band
+        - channel
+        - mode
+        - clients
+        - timestamp
+      properties:
+        bssid:
+          type: string
+        ssid:
+          type: string
+        band:
+          type: string
+        channel:
+          type: integer
+        mode:
+          type: string
+        clients:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/FaceClient'
+        timestamp:
+          type: string
+          format: date-time
+
+    Device:
+      type: object
+      required:
+        - connected
+      properties:
+        serial:
+          type: string
+        uptime:
+          type: integer
+          format: int64
+        aps:
+          type: array
+          items:
+            $ref: '#/components/schemas/Face'
+        mesh:
+          type: array
+          items:
+            $ref: '#/components/schemas/Face'
+        connected:
+          type: boolean
+
+    MeshEdge:
+      type: object
+      required:
+        - from
+        - to
+        - ssid
+        - band
+        - channel
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        ssid:
+          type: string
+        band:
+          type: string
+        channel:
+          type: integer
+
+    TopologyEdges:
+      type: object
+      required:
+        - wired
+        - mesh
+      properties:
+        wired:
+          type: array
+          items: {}
+        mesh:
+          type: array
+          items:
+            $ref: '#/components/schemas/MeshEdge'
+
+    Topology:
+      type: object
+      properties:
+        boardId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Device'
+        edges:
+          $ref: '#/components/schemas/TopologyEdges'
+        external:
+          type: array
+          items: {}
+
+    CertificateInfo:
+      type: object
+      additionalProperties: true
+
+    SystemInfoResults:
+      type: object
+      required:
+        - version
+        - uptime
+        - start
+        - os
+        - processors
+        - hostname
+        - ui
+        - certificates
+      properties:
+        version:
+          type: string
+        uptime:
+          type: integer
+          format: int64
+        start:
+          type: integer
+          format: int64
+        os:
+          type: string
+        processors:
+          type: integer
+        hostname:
+          type: string
+        ui:
+          type: string
+        certificates:
+          type: array
+          items:
+            $ref: '#/components/schemas/CertificateInfo'
+
+    SystemResources:
+      type: object
+      required:
+        - numberOfFileDescriptors
+        - currRealMem
+        - peakRealMem
+        - currVirtMem
+        - peakVirtMem
+      properties:
+        numberOfFileDescriptors:
+          type: integer
+          format: int64
+        currRealMem:
+          type: integer
+          format: int64
+        peakRealMem:
+          type: integer
+          format: int64
+        currVirtMem:
+          type: integer
+          format: int64
+        peakVirtMem:
+          type: integer
+          format: int64
+
+    ExtraConfiguration:
+      type: object
+      required:
+        - additionalConfiguration
+      properties:
+        additionalConfiguration:
+          type: boolean
+
+    TagValuePair:
+      type: object
+      properties:
+        tag:
+          type: string
+        value:
+          type: string
+
+    TagValuePairList:
+      type: object
+      required:
+        - tagList
+      properties:
+        tagList:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagValuePair'
+
+    StringList:
+      type: object
+      required:
+        - list
+      properties:
+        list:
+          type: array
+          items:
+            type: string
+
+    SystemCommandSetLogLevel:
+      type: object
+      required:
+        - command
+        - subsystems
+      properties:
+        command:
+          type: string
+          enum:
+            - setloglevel
+        subsystems:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagValuePair'
+
+    SystemCommandReload:
+      type: object
+      required:
+        - command
+      properties:
+        command:
+          type: string
+          enum:
+            - reload
+        subsystems:
+          type: array
+          items:
+            type: string
+
+    SystemCommandGetLogLevels:
+      type: object
+      required:
+        - command
+      properties:
+        command:
+          type: string
+          enum:
+            - getloglevels
+
+    SystemCommandGetLogLevelNames:
+      type: object
+      required:
+        - command
+      properties:
+        command:
+          type: string
+          enum:
+            - getloglevelnames
+
+    SystemCommandGetSubsystemNames:
+      type: object
+      required:
+        - command
+      properties:
+        command:
+          type: string
+          enum:
+            - getsubsystemnames
+
+paths:
+  /livez:
+    get:
+      summary: Check whether the process is alive.
+      operationId: getLivez
+      servers:
+        - url: https://openwifi.wlan.local:16007/api/v1
+          description: Public listener
+        - url: https://openwifi.wlan.local:17007/api/v1
+          description: Private listener
+      security:
+        - bearerAuth: []
+        - {}
+      responses:
+        '200':
+          description: Service is alive.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /topology:
+    get:
+      summary: Build the current topology for a board.
+      operationId: getTopology
+      servers:
+        - url: https://openwifi.wlan.local:16007/api/v1
+          description: Public listener
+        - url: https://openwifi.wlan.local:17007/api/v1
+          description: Private listener
+      security:
+        - bearerAuth: []
+        - ApiKeyAuth: []
+        - {}
+      parameters:
+        - name: boardId
+          in: query
+          required: true
+          description: Board identifier passed to the topology builder.
+          schema:
+            type: string
+        - name: X-INTERNAL-NAME
+          in: header
+          required: false
+          description: On the private listener, if this header is present then `X-API-KEY` must equal the SHA-256 hex digest of the configured public endpoint.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Topology response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Topology'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /system:
+    get:
+      summary: Retrieve runtime information from the public listener.
+      operationId: getSystemCommand
+      servers:
+        - url: https://openwifi.wlan.local:16007/api/v1
+          description: Public listener
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: command
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - info
+              - extraConfiguration
+              - resources
+      responses:
+        '200':
+          description: System command result.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SystemInfoResults'
+                  - $ref: '#/components/schemas/ExtraConfiguration'
+                  - $ref: '#/components/schemas/SystemResources'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      summary: Execute a supported system command on the public listener.
+      operationId: postSystemCommand
+      servers:
+        - url: https://openwifi.wlan.local:16007/api/v1
+          description: Public listener
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/SystemCommandSetLogLevel'
+                - $ref: '#/components/schemas/SystemCommandReload'
+                - $ref: '#/components/schemas/SystemCommandGetLogLevels'
+                - $ref: '#/components/schemas/SystemCommandGetLogLevelNames'
+                - $ref: '#/components/schemas/SystemCommandGetSubsystemNames'
+      responses:
+        '200':
+          description: System command result.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - $ref: '#/components/schemas/TagValuePairList'
+                  - $ref: '#/components/schemas/StringList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
