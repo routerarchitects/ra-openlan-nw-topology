@@ -383,9 +383,9 @@ paths:
       summary: Check whether the process is alive.
       operationId: getLivez
       servers:
-        - url: https://openwifi.wlan.local:16007/api/v1
+        - url: https://openwifi.wlan.local:16007
           description: Public listener
-        - url: https://openwifi.wlan.local:17007/api/v1
+        - url: https://openwifi.wlan.local:17007
           description: Private listener
       security:
         - bearerAuth: []
@@ -410,7 +410,6 @@ paths:
       security:
         - bearerAuth: []
         - ApiKeyAuth: []
-        - {}
       parameters:
         - name: boardId
           in: query
@@ -449,8 +448,10 @@ paths:
       servers:
         - url: https://openwifi.wlan.local:16007/api/v1
           description: Public listener
+        - url: https://openwifi.wlan.local:17007/api/v1
+          description: Private listener
       security:
-        - bearerAuth: []
+        - {}
       parameters:
         - name: command
           in: query
@@ -484,8 +485,10 @@ paths:
       servers:
         - url: https://openwifi.wlan.local:16007/api/v1
           description: Public listener
+        - url: https://openwifi.wlan.local:17007/api/v1
+          description: Private listener
       security:
-        - bearerAuth: []
+        - {}
       requestBody:
         required: true
         content:

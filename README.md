@@ -8,7 +8,7 @@ attaches client associations, and returns a normalized topology graph over a sec
 Like other OpenWiFi-style services, it runs as a TLS-protected service, participates in service discovery, and uses authentication patterns for both public and private access.
 
 ## OpenAPI
-This service is defined with an API document available in this repository at [nwtopology.yaml](./openapi.yaml).
+This service is defined with an API document available in this repository at `/openapi/nwtopology.yaml`
 
 
 ## Docker
