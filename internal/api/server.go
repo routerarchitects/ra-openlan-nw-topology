@@ -30,9 +30,6 @@ func New(cfg config.ServerConfig, authMiddleware middlewares.TopologyAuthMiddlew
 
 	app := fiber.New()
 
-	app.Get("/livez", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
-	app.Get("/readyz", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
-
 	app.Use(middlewares.RequestLogger())
 
 	app.Use(func(c fiber.Ctx) error {

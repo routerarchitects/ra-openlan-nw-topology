@@ -7,6 +7,7 @@ import (
 )
 
 func (s *Server) RegisterRoutes(app *fiber.App, th *handlers.TopologyHandler) {
+	app.Get("/livez", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 	noAuth := app.Group("/api/v1")
 	noAuth.Get("/system", handlers.SystemInfoHandler)
 	noAuth.Post("/system", handlers.SystemAPIHandler)
