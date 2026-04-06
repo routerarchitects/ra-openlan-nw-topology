@@ -8,14 +8,14 @@ replace github.com/routerarchitects/ra-common-mods/kafka => ./../ra-common-mods/
 
 replace github.com/routerarchitects/ra-common-mods/logger => ./../ra-common-mods/logger
 
-replace github.com/routerarchitects/ow-common-mods/servicediscovery => ./../ow-common-mods/service-discovery
+replace github.com/routerarchitects/ow-common-mods/servicediscovery => ./../../router-architects/ow-common-mods/service-discovery/
 
-replace github.com/routerarchitects/ow-common-mods/system-routes => ./../ow-common-mods/system-routes
+replace github.com/routerarchitects/ow-common-mods/system-routes => ./../bkp-fork/ow-common-mods/system-routes
 
 require (
 	github.com/caarlos0/env/v11 v11.4.0
 	github.com/gofiber/fiber/v3 v3.0.0-rc.3
-	github.com/routerarchitects/ra-common-mods/kafka v0.0.0-00010101000000-000000000000
+	github.com/routerarchitects/ra-common-mods/kafka v0.1.0
 	github.com/routerarchitects/ra-common-mods/logger v0.1.0
 )
 
@@ -57,7 +57,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
-	github.com/routerarchitects/ra-common-mods/buildinfo v0.0.0-00010101000000-000000000000 // indirect
+	github.com/routerarchitects/ra-common-mods/buildinfo v0.1.0 // indirect
 	github.com/tinylib/msgp v1.6.3 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.69.0 // indirect

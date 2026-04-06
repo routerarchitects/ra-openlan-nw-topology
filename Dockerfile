@@ -8,17 +8,18 @@ RUN apk add --no-cache git ca-certificates
 WORKDIR /src/ra-openlan-nw-topology
 
 # Cache deps
-COPY ra-openlan-nw-topology/go.mod ra-openlan-nw-topology/go.sum ./
+# Build context must be /home/uttam/openwifi_workspace so all local replace targets are available.
+COPY uttam-repos/ra-openlan-nw-topology/go.mod uttam-repos/ra-openlan-nw-topology/go.sum ./
 # Local module replacements (match go.mod replace paths)
-COPY ra-common-mods/buildinfo /src/ra-common-mods/buildinfo
-COPY ra-common-mods/kafka /src/ra-common-mods/kafka
-COPY ra-common-mods/logger /src/ra-common-mods/logger
-COPY ow-common-mods/service-discovery /src/ow-common-mods/service-discovery
-COPY ow-common-mods/system-routes /src/ow-common-mods/system-routes
+COPY uttam-repos/ra-common-mods/buildinfo /src/ra-common-mods/buildinfo
+COPY uttam-repos/ra-common-mods/kafka /src/ra-common-mods/kafka
+COPY uttam-repos/ra-common-mods/logger /src/ra-common-mods/logger
+COPY router-architects/ow-common-mods/service-discovery /router-architects/ow-common-mods/service-discovery
+COPY uttam-repos/bkp-fork/ow-common-mods/system-routes /src/bkp-fork/ow-common-mods/system-routes
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 # Copy source
-COPY ra-openlan-nw-topology/. .
+COPY uttam-repos/ra-openlan-nw-topology/. .
 
 # Build
 ARG MAIN=./cmd            # because you have cmd/main.go
@@ -41,10 +42,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     COMMIT_HASH_VALUE="${COMMIT_HASH:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}" && \
     go build -trimpath \
     -ldflags="-s -w \
-    -X github.com/routerarchitects/ra-common-mods/build-info.version=${VERSION_VALUE} \
-    -X github.com/routerarchitects/ra-common-mods/build-info.buildTimestamp=${BUILD_TIMESTAMP_VALUE} \
-    -X github.com/routerarchitects/ra-common-mods/build-info.commitHash=${COMMIT_HASH_VALUE} \
-    -X github.com/routerarchitects/ra-common-mods/build-info.Environment=${DEPLOYMENT_ENV}" \
+    -X github.com/routerarchitects/ra-common-mods/buildinfo.version=${VERSION_VALUE} \
+    -X github.com/routerarchitects/ra-common-mods/buildinfo.buildTimestamp=${BUILD_TIMESTAMP_VALUE} \
+    -X github.com/routerarchitects/ra-common-mods/buildinfo.commitHash=${COMMIT_HASH_VALUE}" \
     -o "/out/${APP_NAME}" "${MAIN}"
 
 ############################
@@ -71,7 +71,7 @@ ENV SERVICE_VERSION="${VERSION}" \
 COPY --from=builder /out/${APP_NAME} /app/${APP_NAME}
 
 # Optional certs
-COPY ra-openlan-nw-topology/certs /app/certs
+COPY uttam-repos/ra-openlan-nw-topology/certs /app/certs
 
 # Non-root user
 RUN adduser -D -u 65532 appuser

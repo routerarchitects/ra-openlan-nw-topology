@@ -49,7 +49,7 @@ func main() {
 
 	discoveryConfig := cfg.Discovery.ModuleConfig()
 	kafkaConfig := cfg.Kafka.ModuleConfig()
-	subsystemConfig := cfg.Subsystem.ModuleConfig(cfg.Server)
+	subsystemConfig := cfg.Subsystem.ModuleConfig()
 
 	discovery, err := servicediscovery.New(discoveryConfig, kafkaConfig, discoveryLog)
 	if err != nil {
@@ -61,7 +61,7 @@ func main() {
 		service_rpc.ServiceRpcConfig{
 			TLSRootCA:    cfg.Server.TLS_ROOTCA,
 			Timeout:      15 * time.Second,
-			InternalName: cfg.Logger.ServiceName,
+			InternalName: cfg.Discovery.PublicEndpoint,
 		},
 		serviceRpcLog,
 	)

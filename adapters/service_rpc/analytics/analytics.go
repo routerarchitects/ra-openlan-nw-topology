@@ -142,15 +142,15 @@ func (v *AnalyticsClient) send(ctx context.Context, method string, endpoint stri
 	return resp, nil
 }
 
-func (v *AnalyticsClient) resolveService() (servicediscovery.Instance, error) {
+func (v *AnalyticsClient) resolveService() (*servicediscovery.Instance, error) {
 	if v.deps == nil || v.deps.Discovery == nil {
-		return servicediscovery.Instance{}, apperrors.WrapError(apperrors.CodeInternal, "service discovery is not configured", nil)
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "service discovery is not configured", nil)
 	}
 
 	services := v.deps.Discovery.Store().GetServiceInstances(serviceName)
-	if len(services) == 0 {
-		return servicediscovery.Instance{}, apperrors.WrapError(apperrors.CodeNotFound, http.StatusText(http.StatusNotFound), nil)
+	if services == nil {
+		return nil, apperrors.WrapError(apperrors.CodeNotFound, http.StatusText(http.StatusNotFound), nil)
 	}
 
-	return services[0], nil
+	return services, nil
 }

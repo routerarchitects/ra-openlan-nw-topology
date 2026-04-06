@@ -64,18 +64,15 @@ func (t *TopologyAuthMiddleware) TopologyPublicAuth(c fiber.Ctx) error {
 func (t *TopologyAuthMiddleware) TopologyPrivateAuth(c fiber.Ctx) error {
 	internalHeader := strings.TrimSpace(c.Get("X-INTERNAL-NAME"))
 	if internalHeader == "" {
-		t.logger.Error("internal name header missing")
 		return writeAuthError(c, apperrors.CodeUnauthorized)
 	}
 
 	got := strings.TrimSpace(c.Get("X-API-KEY"))
 	if got == "" {
-		t.logger.Error("api key header missing")
 		return writeAuthError(c, apperrors.CodeUnauthorized)
 	}
 
 	if t.InstanceKey == "" || got != t.InstanceKey {
-		t.logger.Error("auth internal header mismatch")
 		return writeAuthError(c, apperrors.CodeUnauthorized)
 	}
 

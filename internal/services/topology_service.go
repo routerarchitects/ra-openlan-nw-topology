@@ -46,13 +46,13 @@ func (s *topologyService) BuildTopology(boardID string) (models.Topology, error)
 		return models.Topology{}, err
 	}
 
-	deviceIno, err := s.client.GetDeviceInfo(boardID)
+	deviceInfo, err := s.client.GetDeviceInfo(boardID)
 	if err != nil {
 		s.logger.Error("fetch device info failed")
 		return models.Topology{}, err
 	}
 	deviceInfoStatus := make(map[string]bool)
-	for _, di := range deviceIno {
+	for _, di := range deviceInfo {
 		deviceInfoStatus[di.SerialNumber] = di.Connected
 	}
 
@@ -61,7 +61,7 @@ func (s *topologyService) BuildTopology(boardID string) (models.Topology, error)
 
 		s.logger.Info("no timepoint rows; returning empty topology")
 		dev := []models.Device{}
-		for _, m := range deviceIno {
+		for _, m := range deviceInfo {
 			dev = append(dev, models.Device{
 				Uptime:    0,
 				Serial:    m.SerialNumber,
@@ -279,7 +279,7 @@ func (s *topologyService) BuildTopology(boardID string) (models.Topology, error)
 		devs = append(devs, *d)
 	}
 
-	for _, m := range deviceIno {
+	for _, m := range deviceInfo {
 		if _, exists := devMap[m.SerialNumber]; !exists {
 			devs = append(devs, models.Device{
 				Uptime:    0,
