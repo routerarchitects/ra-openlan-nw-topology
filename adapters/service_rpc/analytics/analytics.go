@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -107,6 +108,38 @@ func (v *AnalyticsClient) GetDeviceInfo(boardID string) ([]models.DeviceInfo, er
 	}
 
 	return payload.Devices, nil
+}
+
+func (v *AnalyticsClient) GetWifiClientHistoryMACs(boardId string, limit, offset int) ([]string, error) {
+	fullURL := "/api/v1/wifiClientHistory" +
+		"?macsOnly=true" +
+		"&boardId=" + url.QueryEscape(strings.TrimSpace(boardId)) +
+		"&limit=" + strconv.Itoa(limit) +
+		"&offset=" + strconv.Itoa(offset)
+
+	resp, err := v.send(context.Background(), fiber.MethodGet, fullURL, nil)
+	if err != nil {
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "failed to get wifi client history MACs", err)
+	}
+	defer resp.Close()
+
+	if resp.StatusCode() == fiber.StatusNotFound {
+		info := apperrors.GetHTTPErrorInfo(apperrors.CodeNotFound)
+		return nil, apperrors.WrapError(apperrors.CodeNotFound, info.Description, nil)
+	}
+
+	if resp.StatusCode() != fiber.StatusOK {
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "failed to get wifi client history MACs: non-200 response", nil)
+	}
+
+	type wifiClientHistoryResponse struct {
+		Entries []string `json:"entries"`
+	}
+	var out wifiClientHistoryResponse
+	if err := json.Unmarshal(resp.Body(), &out); err != nil {
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "failed to parse wifiClientHistory response", err)
+	}
+	return out.Entries, nil
 }
 
 func (v *AnalyticsClient) send(ctx context.Context, method string, endpoint string, body io.Reader) (*client.Response, error) {

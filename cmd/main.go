@@ -18,7 +18,6 @@ import (
 	"github.com/router-architects/ra-openlan-nw-topology/internal/services"
 
 	servicediscovery "github.com/routerarchitects/ow-common-mods/servicediscovery"
-	Subsystem "github.com/routerarchitects/ow-common-mods/system-routes"
 	logger "github.com/routerarchitects/ra-common-mods/logger"
 )
 
@@ -79,9 +78,7 @@ func main() {
 		middlewareLog,
 	)
 
-	subsystemRoutes := Subsystem.NewSubsytems(subsystemConfig)
-
-	server := api.New(cfg.Server, authMiddleware, serverLog, subsystemRoutes)
+	server := api.New(cfg.Server, authMiddleware, serverLog, subsystemConfig)
 
 	appConfig := fiber.Config{
 		ReadTimeout:  10 * time.Second,

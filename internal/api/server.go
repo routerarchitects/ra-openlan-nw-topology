@@ -25,10 +25,10 @@ type Server struct {
 	PrivatePort    int
 	AuthMiddleware middlewares.TopologyAuthMiddleware
 	logger         *slog.Logger
-	subsystem      *subsystemmodules.Routes
+	subsystem      subsystemmodules.Config
 }
 
-func New(cfg config.ServerConfig, authMiddleware middlewares.TopologyAuthMiddleware, logger *slog.Logger, subsystem *subsystemmodules.Routes) *Server {
+func New(cfg config.ServerConfig, authMiddleware middlewares.TopologyAuthMiddleware, logger *slog.Logger, subsystem subsystemmodules.Config) *Server {
 
 	server := Server{
 		Crt:            cfg.TLS_CERT,

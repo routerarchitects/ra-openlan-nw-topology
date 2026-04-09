@@ -2,11 +2,12 @@ package models
 
 // Topology is the response model shaped per your example.
 type Topology struct {
-	BoardID   string    `json:"boardId,omitempty"`
-	Timestamp string    `json:"timestamp,omitempty"` // RFC3339 UTC
-	Nodes     []Device  `json:"nodes,omitempty"`
-	Edges     TopoEdges `json:"edges,omitempty"`
-	External  []any     `json:"external,omitempty"`
+	BoardID           string    `json:"boardId,omitempty"`
+	Timestamp         string    `json:"timestamp,omitempty"` // RFC3339 UTC
+	Nodes             []Device  `json:"nodes,omitempty"`
+	HistoricalDevices []string  `json:"historicalDevices,omitempty"` // new field for historical client MACs
+	Edges             TopoEdges `json:"edges,omitempty"`
+	External          []any     `json:"external,omitempty"`
 }
 
 // Device groups faces by device serial.

@@ -8,13 +8,15 @@ replace github.com/routerarchitects/ra-common-mods/kafka => ./../ra-common-mods/
 
 replace github.com/routerarchitects/ra-common-mods/logger => ./../ra-common-mods/logger
 
-replace github.com/routerarchitects/ow-common-mods/servicediscovery => ./../../router-architects/ow-common-mods/service-discovery/
+replace github.com/routerarchitects/ow-common-mods/servicediscovery => ./../ow-common-mods/service-discovery/
 
-replace github.com/routerarchitects/ow-common-mods/system-routes => ./../bkp-fork/ow-common-mods/system-routes
+replace github.com/routerarchitects/ow-common-mods/system-routes => ./../ow-common-mods/system-routes
 
 require (
 	github.com/caarlos0/env/v11 v11.4.0
 	github.com/gofiber/fiber/v3 v3.0.0-rc.3
+	github.com/routerarchitects/ow-common-mods/servicediscovery v0.0.0-00010101000000-000000000000
+	github.com/routerarchitects/ow-common-mods/system-routes v0.0.0-00010101000000-000000000000
 	github.com/routerarchitects/ra-common-mods/kafka v0.1.0
 	github.com/routerarchitects/ra-common-mods/logger v0.1.0
 )
@@ -39,12 +41,6 @@ require (
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
-)
-
-require (
-	github.com/routerarchitects/ow-common-mods/servicediscovery v0.0.0-00010101000000-000000000000
-	github.com/routerarchitects/ow-common-mods/system-routes v0.0.0-00010101000000-000000000000
-// github.com/routerarchitects/ow-common-mods/subsystem-modules v0.0.0-00010101000000-000000000000
 )
 
 require (

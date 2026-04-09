@@ -98,7 +98,8 @@ Build & Run Locally (Go 1.25+)
 
 Container Builds
 ----------------
-- Docker: `docker build -t network-topology .` then
+- Docker: from `uttam-repos/`, run
+  `docker build -f ra-openlan-nw-topology/Dockerfile -t network-topology .` then
   `docker-compose up`.
 - Compose uses `settings.local.env` and mounted certs if you provide them.
 
