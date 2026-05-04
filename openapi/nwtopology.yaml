@@ -1,0 +1,688 @@
+openapi: 3.0.1
+info:
+  title: OpenWiFi Network Topology Service
+  description: REST API implemented by the network topology service.
+  version: 1.0.0
+
+servers:
+  - url: https://openwifi.wlan.local:16007/api/v1
+    description: Public listener
+  - url: https://openwifi.wlan.local:17007/api/v1
+    description: Private listener
+
+security: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-KEY
+    InternalNameAuth:
+      type: apiKey
+      in: header
+      name: X-INTERNAL-NAME
+
+  responses:
+    BadRequest:
+      description: Bad request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Forbidden.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Internal server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Success:
+      description: Successful command execution.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SuccessResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - ErrorCode
+        - ErrorDescription
+        - ErrorDetails
+      properties:
+        ErrorCode:
+          type: integer
+          example: 400
+        ErrorDescription:
+          type: string
+          example: '400: Bad request.'
+        ErrorDetails:
+          type: string
+          example: GET
+
+    SuccessResponse:
+      type: object
+      required:
+        - Code
+        - Operation
+        - Details
+      properties:
+        Code:
+          type: integer
+          example: 0
+        Operation:
+          type: string
+          example: POST
+        Details:
+          type: string
+          example: Command completed.
+
+    FaceClient:
+      type: object
+      required:
+        - station
+        - rssi
+        - connected
+        - inactive
+        - rx_rate_bitrate
+        - tx_rate_bitrate
+        - rx_rate_chwidth
+      properties:
+        station:
+          type: string
+          description: Normalized MAC address.
+        rssi:
+          type: integer
+        connected:
+          type: integer
+        inactive:
+          type: integer
+        rx_rate_bitrate:
+          type: integer
+        tx_rate_bitrate:
+          type: integer
+        rx_rate_chwidth:
+          type: integer
+        fingerprint:
+          type: string
+          description: Optional device fingerprint label. Present only for AP clients when fingerprint data is available.
+
+    Face:
+      type: object
+      required:
+        - bssid
+        - ssid
+        - band
+        - channel
+        - mode
+        - clients
+      properties:
+        bssid:
+          type: string
+        ssid:
+          type: string
+        band:
+          type: string
+          description: Wi-Fi band encoded as a string, for example "2", "5", or "6".
+        channel:
+          type: integer
+        mode:
+          type: string
+          enum:
+            - ap
+            - mesh
+        clients:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/FaceClient'
+
+    Device:
+      type: object
+      required:
+        - connected
+      properties:
+        serial:
+          type: string
+        uptime:
+          type: integer
+          format: int64
+        aps:
+          type: array
+          items:
+            $ref: '#/components/schemas/Face'
+        mesh:
+          type: array
+          items:
+            $ref: '#/components/schemas/Face'
+        connected:
+          type: boolean
+
+    MeshEdge:
+      type: object
+      required:
+        - from
+        - to
+        - ssid
+        - band
+        - channel
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        ssid:
+          type: string
+        band:
+          type: string
+        channel:
+          type: integer
+
+    TopologyEdges:
+      type: object
+      required:
+        - wired
+        - mesh
+      properties:
+        wired:
+          type: array
+          items: {}
+        mesh:
+          type: array
+          items:
+            $ref: '#/components/schemas/MeshEdge'
+
+    Topology:
+      type: object
+      required:
+        - boardId
+        - timestamp
+        - edges
+      properties:
+        boardId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Device'
+        historicalDevices:
+          type: array
+          description: Historical Wi-Fi client MAC addresses that are not present in the current topology window.
+          items:
+            type: string
+        edges:
+          $ref: '#/components/schemas/TopologyEdges'
+        external:
+          type: array
+          items: {}
+
+    CertificateInfo:
+      type: object
+      required:
+        - filename
+        - expiresOn
+      properties:
+        filename:
+          type: string
+          example: restapi.pem
+        expiresOn:
+          type: integer
+          format: int64
+          description: Certificate expiry as a Unix timestamp. A value of 0 means the certificate file was missing or invalid.
+          example: 1770000000
+
+    SystemInfoResults:
+      type: object
+      required:
+        - version
+        - uptime
+        - start
+        - os
+        - processors
+        - hostname
+        - UI
+        - certificates
+      properties:
+        version:
+          type: string
+        uptime:
+          type: integer
+          format: int64
+        start:
+          type: integer
+          format: int64
+        os:
+          type: string
+        processors:
+          type: integer
+        hostname:
+          type: string
+        UI:
+          type: string
+        certificates:
+          type: array
+          items:
+            $ref: '#/components/schemas/CertificateInfo'
+
+    SystemResources:
+      type: object
+      required:
+        - numberOfFileDescriptors
+        - currRealMem
+        - peakRealMem
+        - currVirtMem
+        - peakVirtMem
+      properties:
+        numberOfFileDescriptors:
+          type: integer
+          format: int64
+        currRealMem:
+          type: integer
+          format: int64
+        peakRealMem:
+          type: integer
+          format: int64
+        currVirtMem:
+          type: integer
+          format: int64
+        peakVirtMem:
+          type: integer
+          format: int64
+
+    TagValuePair:
+      type: object
+      required:
+        - tag
+        - value
+      properties:
+        tag:
+          type: string
+        value:
+          type: string
+
+    TagValuePairList:
+      type: object
+      required:
+        - tagList
+      properties:
+        tagList:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagValuePair'
+
+    StringList:
+      type: object
+      required:
+        - list
+      properties:
+        list:
+          type: array
+          items:
+            type: string
+
+    SystemCommandSetLogLevel:
+      type: object
+      required:
+        - command
+        - subsystems
+      properties:
+        command:
+          type: string
+          enum:
+            - setloglevel
+        subsystems:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagValuePair'
+
+    SystemCommandGetLogLevels:
+      type: object
+      required:
+        - command
+      properties:
+        command:
+          type: string
+          enum:
+            - getloglevels
+
+    SystemCommandGetLogLevelNames:
+      type: object
+      required:
+        - command
+      properties:
+        command:
+          type: string
+          enum:
+            - getloglevelnames
+
+    SystemCommandGetSubsystemNames:
+      type: object
+      required:
+        - command
+      properties:
+        command:
+          type: string
+          enum:
+            - getsubsystemnames
+
+paths:
+  /livez:
+    get:
+      summary: Check whether the process is alive.
+      operationId: getLivez
+      servers:
+        - url: https://openwifi.wlan.local:16007
+          description: Public listener
+        - url: https://openwifi.wlan.local:17007
+          description: Private listener
+      security: []
+      responses:
+        '200':
+          description: Service is alive.
+
+  /topology:
+    get:
+      summary: Build the current topology for a board.
+      description : 
+        Builds the current topology for the requested board. On the public
+        listener, either bearer tokens or API KEY are validated through owsec before topology
+        data is assembled, while the private listener requires
+        X-INTERNAL-NAME and X-API-KEY. The topology payload is built from owanalytics
+        board timepoints, board device inventory data, and Wi-Fi client
+        history data. Failures while retrieving Wi-Fi client history are
+        tolerated and do not fail the overall topology request.
+      operationId: getTopology
+      servers:
+        - url: https://openwifi.wlan.local:16007/api/v1
+          description: Public listener
+        - url: https://openwifi.wlan.local:17007/api/v1
+          description: Private listener
+      security:
+        - bearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyAuth: []
+          InternalNameAuth: []
+      parameters:
+        - name: boardId
+          in: query
+          required: true
+          description: Board identifier passed to the topology builder.
+          schema:
+            type: string
+        - name: interval
+          in: query
+          required: false
+          description: Timepoint lookback interval in seconds. Defaults to 240 seconds.
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+            maximum: 86400
+            default: 240
+        - name: X-INTERNAL-NAME
+          in: header
+          required: false
+          description: Required on the private listener as non-empty internal caller metadata. Authentication on that listener uses `X-API-KEY` against the configured instance key.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Topology response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Topology'
+              examples:
+                current:
+                  summary: Topology with AP clients, mesh peers, and historical clients.
+                  value:
+                    boardId: 6fa45a47-07a9-4a48-a566-16ac2825cf47
+                    timestamp: '2026-04-27T06:38:57Z'
+                    nodes:
+                      - serial: 60cf84f21d08
+                        uptime: 3235
+                        aps:
+                          - bssid: '60:cf:84:f2:1d:08'
+                            ssid: Public ssid
+                            band: '2'
+                            channel: 6
+                            mode: ap
+                            clients: null
+                          - bssid: '60:cf:84:f2:1d:0c'
+                            ssid: Public ssid
+                            band: '5'
+                            channel: 149
+                            mode: ap
+                            clients:
+                              - station: '02:4a:f0:ba:6e:1e'
+                                rssi: -69
+                                connected: 958
+                                inactive: 60
+                                rx_rate_bitrate: 24000
+                                tx_rate_bitrate: 240000
+                                rx_rate_chwidth: 40
+                                fingerprint: iPhone
+                        mesh:
+                          - bssid: '62:cf:84:f2:1d:0c'
+                            ssid: DEFAULT-Mesh
+                            band: '5'
+                            channel: 149
+                            mode: mesh
+                            clients:
+                              - station: 'b6:6a:d4:45:e9:60'
+                                rssi: -26
+                                connected: 1282
+                                inactive: 0
+                                rx_rate_bitrate: 573500
+                                tx_rate_bitrate: 6000
+                                rx_rate_chwidth: 40
+                        connected: true
+                      - serial: b46ad445e95c
+                        uptime: 19690
+                        aps:
+                          - bssid: 'b4:6a:d4:45:e9:5f'
+                            ssid: Public ssid
+                            band: '2'
+                            channel: 6
+                            mode: ap
+                            clients: null
+                          - bssid: 'b4:6a:d4:45:e9:60'
+                            ssid: Public ssid
+                            band: '5'
+                            channel: 149
+                            mode: ap
+                            clients: null
+                        mesh:
+                          - bssid: 'b6:6a:d4:45:e9:60'
+                            ssid: DEFAULT-Mesh
+                            band: '5'
+                            channel: 149
+                            mode: mesh
+                            clients:
+                              - station: '62:cf:84:f2:1d:0c'
+                                rssi: -24
+                                connected: 1291
+                                inactive: 0
+                                rx_rate_bitrate: 0
+                                tx_rate_bitrate: 286700
+                                rx_rate_chwidth: 20
+                        connected: true
+                    historicalDevices:
+                      - '02:14:f8:6e:d9:a6'
+                      - '94:97:ae:f7:44:fd'
+                      - 'c2:65:17:5d:45:a5'
+                      - 'da:8f:b0:35:30:af'
+                    edges:
+                      wired: []
+                      mesh:
+                        - from: 60cf84f21d08
+                          to: b46ad445e95c
+                          ssid: DEFAULT-Mesh
+                          band: '5'
+                          channel: 149
+                        - from: b46ad445e95c
+                          to: 60cf84f21d08
+                          ssid: DEFAULT-Mesh
+                          band: '5'
+                          channel: 149
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /system:
+    get:
+      summary: Retrieve runtime information.
+      description: 
+        Returns locally computed runtime information for the requested system
+        command. The request is validated from the query string and does not
+        call downstream APIs.
+      operationId: getSystemCommand
+      servers:
+        - url: https://openwifi.wlan.local:16007/api/v1
+          description: Public listener
+        - url: https://openwifi.wlan.local:17007/api/v1
+          description: Private listener
+      security:
+        - bearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyAuth: []
+          InternalNameAuth: []
+      parameters:
+        - name: command
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - info
+              - resources
+        - name: X-INTERNAL-NAME
+          in: header
+          required: false
+          description: Required on the private listener as non-empty internal caller metadata. Authentication on that listener uses `X-API-KEY` against the configured instance key.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: System command result.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SystemInfoResults'
+                  - $ref: '#/components/schemas/SystemResources'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Execute a supported system command.
+      description: 
+        Executes a supported local system command. The request body is
+        validated against the declared command schemas before execution.
+      operationId: postSystemCommand
+      servers:
+        - url: https://openwifi.wlan.local:16007/api/v1
+          description: Public listener
+        - url: https://openwifi.wlan.local:17007/api/v1
+          description: Private listener
+      security:
+        - bearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyAuth: []
+          InternalNameAuth: []
+      parameters:
+        - name: X-INTERNAL-NAME
+          in: header
+          required: false
+          description: Required on the private listener as non-empty internal caller metadata. Authentication on that listener uses `X-API-KEY` against the configured instance key.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/SystemCommandSetLogLevel'
+                - $ref: '#/components/schemas/SystemCommandGetLogLevels'
+                - $ref: '#/components/schemas/SystemCommandGetLogLevelNames'
+                - $ref: '#/components/schemas/SystemCommandGetSubsystemNames'
+      responses:
+        '200':
+          description: System command result.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - $ref: '#/components/schemas/TagValuePairList'
+                  - $ref: '#/components/schemas/StringList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    options:
+      summary: Return allowed methods for the system route.
+      operationId: optionsSystemCommand
+      servers:
+        - url: https://openwifi.wlan.local:16007/api/v1
+          description: Public listener
+        - url: https://openwifi.wlan.local:17007/api/v1
+          description: Private listener
+      security:
+        - bearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyAuth: []
+          InternalNameAuth: []
+      parameters:
+        - name: X-INTERNAL-NAME
+          in: header
+          required: false
+          description: Required on the private listener as non-empty internal caller metadata. Authentication on that listener uses `X-API-KEY` against the configured instance key.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: No content. The `Allow` header is set to `GET,POST,OPTIONS`.
+          headers:
+            Allow:
+              schema:
+                type: string
+                example: GET,POST,OPTIONS
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400' :
+          $ref: '#/components/responses/BadRequest'
