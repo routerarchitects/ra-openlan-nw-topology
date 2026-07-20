@@ -41,7 +41,7 @@ require (
 
 require (
 	github.com/go-playground/validator/v10 v10.30.2
-	github.com/routerarchitects/ow-common-mods/servicerpc v0.2.0
+	github.com/routerarchitects/ow-common-mods/servicerpc v0.3.0
 )
 
 require (
