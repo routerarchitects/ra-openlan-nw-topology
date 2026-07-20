@@ -13,7 +13,7 @@ By consuming device state and timepoint information from dependent services (suc
 Within Mango Cloud, this service serves as the central **Network Topology View Generator**.
 
 Key integrations include:
-* **Live Topology Builder**: Aggregates mesh links, signal strength statistics, and wired AP connections to render real-time interactive network maps in the management dashboard.
+* **Live Topology Builder**: Aggregates AP nodes, mesh links, signal-strength statistics, and client associations to render live wireless topology maps.
 * **Intra-Microservice Analytics**: Gathers timepoint snapshots and association metrics directly from the Analytics Service (`owanalytics`).
 * **Intra-Microservice Auth**: Integrates with the Security Service (`owsec`) to validate bearer tokens and API keys on its public interface.
 
