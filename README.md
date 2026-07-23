@@ -29,13 +29,15 @@ You can load the [raw OpenAPI definition file](https://raw.githubusercontent.com
 ## Building & Deployment
 This service is written in Go. To build and run the service, refer to the Go module settings (`go.mod`) and build configs in the [Dockerfile](./Dockerfile).
 
-## Firewall Considerations
-The microservice exposes two main network ports. Ensure your firewall or container ingress rules are configured accordingly:
+## Network Ports
+The service listens on the following container ports:
 
-| Port | Description | Configurable |
+| Container Port | Interface | Typical Deployment Port |
 | :--- | :--- | :---: |
-| `16007` | Default public REST API access port (often mapped from internal port `8088`) | yes |
-| `17007` | Default internal/private REST API access port | yes |
+| `8088` | Public REST API | `16007` |
+| `17007` | Private REST API | `17007` |
+
+In the standard Mango Cloud deployment, the public listener is exposed externally on port `16007`. Port mappings may be changed through the deployment configuration.
 
 ## Kafka topics
 This service uses Kafka primarily for service discovery and event-driven coordination with other platform services, participating on the `service_events` topic.
