@@ -5,9 +5,9 @@
 # Mango Cloud Network Topology Service
 
 ## Overview
-The Mango Cloud Network Topology Service is a custom microservice developed by Router Architects specifically for the Mango Cloud ecosystem. It builds a live network topology visualization for active nodes within your deployment.
+The Mango Cloud Network Topology Service is a custom microservice developed by Router Architects for Mango Cloud, an open-source OpenLAN/OpenWiFi cloud controller for managed Wi-Fi and connectivity operations. Mango Cloud is purpose-built for ISPs, MSPs, Edge AI providers, and IoT service providers.
 
-By consuming device state, timepoint data, and client-association history from the Analytics Service (`owanalytics`), the service correlates AP-to-AP mesh interfaces, attaches client associations, and returns a normalized, structured topology graph over a secure REST API.
+The service builds a live network topology for OpenWiFi access points, mesh nodes, and connected clients within a Mango Cloud deployment.
 
 ## Role in Mango Cloud
 Within Mango Cloud, this service serves as the central **Network Topology View Generator**.
