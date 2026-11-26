@@ -39,6 +39,57 @@ The service listens on the following container ports:
 
 In the standard Mango Cloud deployment, the public listener is exposed externally on port `16007`. Port mappings may be changed through the deployment configuration.
 
+## Historical Topology API
+
+The service exposes `GET /api/v1/topology/history` on both the public and private authenticated listeners to generate historical network topology snapshots using a sliding window over analytics timepoints.
+
+### Query Parameters
+
+All durations and intervals are in seconds:
+
+| Parameter | Type | Required | Default | Description |
+| :--- | :--- | :---: | :---: | :--- |
+| `boardId` | string | Yes | — | Analytics board identifier. |
+| `duration` | integer | No | `1800` | Requested historical duration. |
+| `windowInterval` | integer | Yes | — | Nominal window size and sliding step. |
+| `jitter` | integer | No | `10` | Tolerance appended to the end of each window (`0` disables jitter). |
+
+### Sliding Window Semantics & Limitations
+
+- **Window boundaries**: Each snapshot covers `windowStart <= timestamp <= windowEnd + jitter`. Jitter is applied only to the end of the window, and the window advances by `windowInterval` (never `windowInterval + jitter`). Consecutive windows overlap by `jitter` seconds.
+- **Complete nominal windows**: When `duration` is not divisible by `windowInterval`, the trailing partial window is omitted and `endDate` reflects the actual covered nominal end.
+- **Online/offline inference**: The `connected` field in historical snapshots is inferred from whether an eligible timepoint exists in that window, not live WebSocket connectivity. Offline devices remain in `nodes` with empty `aps: []` and `mesh: []` arrays.
+- **Timestamp origin**: Analytics timepoint timestamps originate from the device's `unit.localtime`, not database insertion time. Jitter tolerates reporting timestamp variation but does not guarantee delayed database inserts have completed.
+- **Board membership scope**: Membership is retrieved from `owanalytics` current board device inventory (`GetDeviceInfo`). If a board monitors subvenues or historical device venue assignments changed, current membership alone cannot guarantee historical tenant isolation without upstream board/venue scoping.
+- **Resource limits** (configurable via environment variables):
+  - `TOPOLOGY_HISTORY_MAX_DURATION_SECONDS` (default `86400`)
+  - `TOPOLOGY_HISTORY_MAX_JITTER_SECONDS` (default `300`)
+  - `TOPOLOGY_HISTORY_MAX_SNAPSHOT_COUNT` (default `720`)
+  - `TOPOLOGY_HISTORY_MAX_TIMEPOINTS_PER_FETCH` (default `5000`)
+  - `TOPOLOGY_HISTORY_MAX_TOTAL_TIMEPOINTS` (default `100000`)
+  - `TOPOLOGY_HISTORY_MAX_ESTIMATED_OUTPUT_UNITS` (default `250000`)
+
+### Example Requests
+
+Public API (Bearer token):
+
+```bash
+curl -k -X GET \
+  'https://<topology-host>/api/v1/topology/history?boardId=<board-id>&duration=1800&windowInterval=60&jitter=10' \
+  -H 'Authorization: Bearer <access-token>' \
+  -H 'Accept: application/json'
+```
+
+Private API (internal service authentication):
+
+```bash
+curl -k -X GET \
+  'https://<topology-host>/api/v1/topology/history?boardId=<board-id>&duration=1800&windowInterval=60&jitter=10' \
+  -H 'X-INTERNAL-NAME: <internal-name>' \
+  -H 'X-API-KEY: <instance-api-key>' \
+  -H 'Accept: application/json'
+```
+
 ## Kafka topics
 This service uses Kafka primarily for service discovery and event-driven coordination with other platform services, participating on the `service_events` topic.
 

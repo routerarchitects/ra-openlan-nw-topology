@@ -24,6 +24,7 @@ func init() {
 
 type TopologyService interface {
 	BuildTopology(ctx context.Context, boardID string, timeIntervalSeconds uint64) (*models.Topology, error)
+	BuildHistoricalTopology(ctx context.Context, boardID string, duration uint64, windowInterval uint64, jitter uint64) (*models.HistoricalTopologyResponse, error)
 }
 
 type TopologyHandler struct {

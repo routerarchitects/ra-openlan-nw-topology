@@ -40,4 +40,5 @@ func registerLivenessRoute(app *fiber.App) {
 
 func registerTopologyRoute(group fiber.Router, topology *handlers.TopologyHandler) {
 	group.Get("/api/v1/topology", topology.GetTopology)
+	group.Get("/api/v1/topology/history", topology.GetHistoricalTopology)
 }
