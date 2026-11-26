@@ -405,6 +405,20 @@ func TestBuildHistoricalTopology_AvailabilityAndTopologyReconstruction(t *testin
 					BoardID:   "board-1",
 					Timestamp: 1015,
 					Serial:    "AP-1",
+					SSIDData: []analytics.SSIDData{
+						{
+							BSSID: "aa:00:00:00:00:01", SSID: "Corp", Band: 5, Channel: 36, Mode: "ap",
+							Associations: []analytics.SSIDAssociation{
+								{Station: "cc:00:00:00:00:01", RSSI: -60},
+							},
+						},
+						{
+							BSSID: "aa:00:00:00:00:02", SSID: "Mesh", Band: 5, Channel: 149, Mode: "mesh",
+							Associations: []analytics.SSIDAssociation{
+								{Station: "bb:00:00:00:00:02", RSSI: -40},
+							},
+						},
+					},
 				},
 				// AP-2 online in win0, roaming client cc:00:00:00:00:01 at newer timestamp 1030
 				{
@@ -614,6 +628,81 @@ func TestBuildHistoricalTopology_PartitioningAndErrorPropagation(t *testing.T) {
 		svc2 := newFixedHistoryService(client2, 1795653010, config.DefaultHistoryConfig())
 		if _, err := svc2.BuildHistoricalTopology(context.Background(), "board-1", 1800, 60, 10); apperror.CodeOf(err) != apperror.CodeConflict {
 			t.Fatalf("expected CodeConflict on conflicting duplicate IDs, got %v", err)
+		}
+
+		// Same timestamp/serial/boardId but different SSIDData/Associations should also be rejected as CodeConflict.
+		client3 := &historyMockAnalyticsClient{
+			getDeviceInfoFn: func(ctx context.Context, boardID string) ([]analytics.DeviceInfo, error) {
+				return []analytics.DeviceInfo{{SerialNumber: "AP-1"}}, nil
+			},
+			getTimepointsFn: func(ctx context.Context, req analytics.TimepointRequest) ([]analytics.TimepointsData, error) {
+				return []analytics.TimepointsData{
+					{
+						ID:        "tp-1",
+						BoardID:   "board-1",
+						Timestamp: 1795651210,
+						Serial:    "AP-1",
+						SSIDData: []analytics.SSIDData{
+							{BSSID: "aa:00:00:00:00:01", SSID: "Corp", Band: 5, Channel: 36, Mode: "ap"},
+						},
+					},
+					{
+						ID:        "tp-1",
+						BoardID:   "board-1",
+						Timestamp: 1795651210,
+						Serial:    "AP-1",
+						SSIDData: []analytics.SSIDData{
+							{
+								BSSID: "aa:00:00:00:00:01", SSID: "Corp", Band: 5, Channel: 36, Mode: "ap",
+								Associations: []analytics.SSIDAssociation{{Station: "cc:00:00:00:00:01", RSSI: -55}},
+							},
+						},
+					},
+				}, nil
+			},
+		}
+		svc3 := newFixedHistoryService(client3, 1795653010, config.DefaultHistoryConfig())
+		if _, err := svc3.BuildHistoricalTopology(context.Background(), "board-1", 1800, 60, 10); apperror.CodeOf(err) != apperror.CodeConflict {
+			t.Fatalf("expected CodeConflict on conflicting duplicate ID payload, got %v", err)
+		}
+	})
+
+	t.Run("enforces output unit limit including interfaces and clients", func(t *testing.T) {
+		const nowUnix = int64(1130)
+		// 2 snapshots x 1 device = 2 nodes (passes pre-fetch check with limit=5),
+		// but 1 AP + 3 clients per snapshot = 12 total output units > limit 5.
+		cfg := config.HistoryConfig{
+			MaxEstimatedOutputUnits: 5,
+		}
+		client := &historyMockAnalyticsClient{
+			getDeviceInfoFn: func(ctx context.Context, boardID string) ([]analytics.DeviceInfo, error) {
+				return []analytics.DeviceInfo{{SerialNumber: "AP-1"}}, nil
+			},
+			getTimepointsFn: func(ctx context.Context, req analytics.TimepointRequest) ([]analytics.TimepointsData, error) {
+				return []analytics.TimepointsData{
+					{
+						ID:        "tp-1",
+						BoardID:   "board-1",
+						Timestamp: 1065, // falls in both snapshots
+						Serial:    "AP-1",
+						SSIDData: []analytics.SSIDData{
+							{
+								BSSID: "aa:00:00:00:00:01", SSID: "Corp", Band: 5, Channel: 36, Mode: "ap",
+								Associations: []analytics.SSIDAssociation{
+									{Station: "cc:00:00:00:00:01", RSSI: -50},
+									{Station: "cc:00:00:00:00:02", RSSI: -55},
+									{Station: "cc:00:00:00:00:03", RSSI: -60},
+								},
+							},
+						},
+					},
+				}, nil
+			},
+		}
+		svc := newFixedHistoryService(client, nowUnix, cfg)
+		_, err := svc.BuildHistoricalTopology(context.Background(), "board-1", 120, 60, 10)
+		if apperror.CodeOf(err) != apperror.CodeInvalidInput {
+			t.Fatalf("expected CodeInvalidInput when output units exceed limit, got %v", err)
 		}
 	})
 }

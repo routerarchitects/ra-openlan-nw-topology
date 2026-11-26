@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -337,7 +338,7 @@ func prepareHistoricalTimepoints(
 		}
 
 		if existing, seen := seenByID[id]; seen {
-			if existing.Timestamp != r.Timestamp || resolveSerial(existing) != serial || strings.TrimSpace(existing.BoardID) != strings.TrimSpace(r.BoardID) {
+			if !timepointsPayloadEqual(existing, r) {
 				return nil, apperror.New(apperror.CodeConflict, fmt.Sprintf("conflicting timepoint records for id %q", id))
 			}
 			continue
@@ -369,6 +370,7 @@ func (s *topologyService) buildHistoricalSnapshots(
 	cursor := 0
 	snapshots := make([]models.HistoricalTopologySnapshot, 0, rng.snapshotCnt)
 	jitterI64 := int64(jitter)
+	var totalOutputUnits uint64
 
 	for i := uint64(0); i < rng.snapshotCnt; i++ {
 		if err := ctx.Err(); err != nil {
@@ -417,6 +419,16 @@ func (s *topologyService) buildHistoricalSnapshots(
 		devs, meshEdges := s.buildTopologyFromStates(validStates, status)
 		histDevs := toHistoricalDevices(devs)
 
+		totalOutputUnits += countSnapshotOutputUnits(histDevs, meshEdges)
+		if totalOutputUnits > s.historyConfig.MaxEstimatedOutputUnits {
+			s.logger.Warn("historical topology output exceeded maximum allowed units",
+				"totalOutputUnits", totalOutputUnits,
+				"limit", s.historyConfig.MaxEstimatedOutputUnits,
+				"snapshotIndex", i,
+			)
+			return nil, apperror.New(apperror.CodeInvalidInput, fmt.Sprintf("historical topology response size exceeds maximum allowed %d output units", s.historyConfig.MaxEstimatedOutputUnits))
+		}
+
 		snapshots = append(snapshots, models.HistoricalTopologySnapshot{
 			Timestamp:          windowEnd,
 			WindowStart:        windowStart,
@@ -453,4 +465,31 @@ func toHistoricalDevices(devs []models.Device) []models.HistoricalDevice {
 		})
 	}
 	return out
+}
+
+func countSnapshotOutputUnits(nodes []models.HistoricalDevice, meshEdges []models.MeshEdge) uint64 {
+	units := uint64(len(nodes) + len(meshEdges))
+	for _, n := range nodes {
+		units += uint64(len(n.APs) + len(n.Mesh))
+		for _, iface := range n.APs {
+			units += uint64(len(iface.Clients))
+		}
+		for _, iface := range n.Mesh {
+			units += uint64(len(iface.Clients))
+		}
+	}
+	return units
+}
+
+func timepointsPayloadEqual(a, b analytics.TimepointsData) bool {
+	if a.Timestamp != b.Timestamp {
+		return false
+	}
+	if strings.TrimSpace(a.BoardID) != strings.TrimSpace(b.BoardID) {
+		return false
+	}
+	if resolveSerial(a) != resolveSerial(b) {
+		return false
+	}
+	return reflect.DeepEqual(a.DeviceInfo, b.DeviceInfo) && reflect.DeepEqual(a.SSIDData, b.SSIDData)
 }
