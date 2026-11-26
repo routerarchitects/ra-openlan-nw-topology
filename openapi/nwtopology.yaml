@@ -242,6 +242,105 @@ components:
           type: array
           items: {}
 
+    HistoricalDevice:
+      type: object
+      required:
+        - serial
+        - aps
+        - mesh
+        - connected
+      properties:
+        serial:
+          type: string
+        uptime:
+          type: integer
+          format: int64
+        aps:
+          type: array
+          items:
+            $ref: '#/components/schemas/Face'
+        mesh:
+          type: array
+          items:
+            $ref: '#/components/schemas/Face'
+        connected:
+          type: boolean
+          description: Inferred online/offline status based on eligible timepoint availability in the snapshot window, not live WebSocket connectivity.
+
+    HistoricalTopologySnapshot:
+      type: object
+      required:
+        - timestamp
+        - windowStart
+        - windowEnd
+        - effectiveWindowEnd
+        - nodes
+        - edges
+      properties:
+        timestamp:
+          type: integer
+          format: int64
+          description: Nominal window end Unix timestamp in seconds.
+        windowStart:
+          type: integer
+          format: int64
+          description: Inclusive nominal window start Unix timestamp in seconds.
+        windowEnd:
+          type: integer
+          format: int64
+          description: Nominal window end Unix timestamp in seconds.
+        effectiveWindowEnd:
+          type: integer
+          format: int64
+          description: Inclusive effective window end (windowEnd + jitter) Unix timestamp in seconds.
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoricalDevice'
+        edges:
+          $ref: '#/components/schemas/TopologyEdges'
+
+    HistoricalTopologyResponse:
+      type: object
+      required:
+        - boardId
+        - fromDate
+        - endDate
+        - duration
+        - windowInterval
+        - jitter
+        - snapshotCount
+        - snapshots
+      properties:
+        boardId:
+          type: string
+        fromDate:
+          type: integer
+          format: int64
+          description: Historical start Unix timestamp in seconds.
+        endDate:
+          type: integer
+          format: int64
+          description: Actual covered nominal end Unix timestamp in seconds (may be earlier than historyEnd if a trailing incomplete window is omitted).
+        duration:
+          type: integer
+          format: int64
+          description: Requested historical duration in seconds.
+        windowInterval:
+          type: integer
+          format: int64
+          description: Nominal window size and sliding step in seconds.
+        jitter:
+          type: integer
+          format: int64
+          description: Tolerance in seconds appended to the end of each window.
+        snapshotCount:
+          type: integer
+        snapshots:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoricalTopologySnapshot'
+
     CertificateInfo:
       type: object
       required:
@@ -556,6 +655,102 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /topology/history:
+    get:
+      summary: Build historical topology snapshots for a board.
+      description: |
+        Generates sliding-window historical network topology snapshots for the
+        requested board using analytics timepoints (`LatestPerDevice=false`,
+        `pointsOnly=true`) and board device membership.
+
+        - `windowInterval` is required and sets both the nominal window size
+          and sliding step.
+        - `duration` defaults to 1800 seconds; `jitter` defaults to 10 seconds
+          and an explicit `jitter=0` is accepted.
+        - `jitter` is appended only to the end of each window:
+          `windowStart <= timestamp <= windowEnd + jitter`.
+        - Consecutive windows overlap by `jitter` seconds (or share the
+          inclusive boundary when `jitter=0`).
+        - Only complete nominal windows are returned; any trailing partial
+          window when `duration` is not divisible by `windowInterval` is omitted
+          and `endDate` reflects the actual covered nominal end.
+        - Analytics timestamps originate from the device `unit.localtime`, not
+          database insertion time.
+        - `connected` in historical snapshots is inferred from timepoint
+          availability, not confirmed WebSocket connectivity.
+        - Membership uses current board device inventory from analytics; if
+          board/venue authorization scope cannot be guaranteed, requests fail
+          closed.
+      operationId: getHistoricalTopology
+      servers:
+        - url: https://openwifi.wlan.local:16007/api/v1
+          description: Public listener
+        - url: https://openwifi.wlan.local:17007/api/v1
+          description: Private listener
+      security:
+        - bearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyAuth: []
+          InternalNameAuth: []
+      parameters:
+        - name: boardId
+          in: query
+          required: true
+          description: Analytics board identifier.
+          schema:
+            type: string
+        - name: duration
+          in: query
+          required: false
+          description: Requested historical duration in seconds. Defaults to 1800.
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+            maximum: 86400
+            default: 1800
+        - name: windowInterval
+          in: query
+          required: true
+          description: Device state reporting interval in seconds (nominal window size and sliding step).
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: jitter
+          in: query
+          required: false
+          description: Additional tolerance in seconds appended to the end of every window. Defaults to 10; 0 disables jitter.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            maximum: 300
+            default: 10
+        - name: X-INTERNAL-NAME
+          in: header
+          required: false
+          description: Required on the private listener as non-empty internal caller metadata. Authentication on that listener uses `X-API-KEY` against the configured instance key.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Historical topology response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoricalTopologyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
 

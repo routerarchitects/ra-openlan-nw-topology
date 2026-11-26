@@ -67,7 +67,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("create analytics client: %v", err))
 	}
-	svc := services.NewTopologyService(analyticsClient)
+	svc := services.NewTopologyServiceWithConfig(analyticsClient, cfg.History)
 
 	publicAuthConfig := auth.PublicAuthConfig{}
 	privateAuthConfig := auth.InternalAPIKeyConfig{

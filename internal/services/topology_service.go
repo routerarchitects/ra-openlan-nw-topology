@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
 	"github.com/routerarchitects/ow-common-mods/servicerpc/analytics"
 	"github.com/routerarchitects/ra-common-mods/logger"
@@ -25,8 +26,10 @@ type AnalyticsClientInterface interface {
 // when the handler does not receive a time query parameter. last four minutes is window to capture recent timepoints data
 
 type topologyService struct {
-	client AnalyticsClientInterface
-	logger *slog.Logger
+	client        AnalyticsClientInterface
+	logger        *slog.Logger
+	historyConfig config.HistoryConfig
+	nowFunc       func() time.Time
 }
 
 type topologyInputs struct {
@@ -46,8 +49,17 @@ type topologyBuildResult struct {
 }
 
 func NewTopologyService(client AnalyticsClientInterface) *topologyService {
+	return NewTopologyServiceWithConfig(client, config.DefaultHistoryConfig())
+}
+
+func NewTopologyServiceWithConfig(client AnalyticsClientInterface, historyCfg config.HistoryConfig) *topologyService {
 	logger := logger.Subsystem("topology-service")
-	return &topologyService{client: client, logger: logger}
+	return &topologyService{
+		client:        client,
+		logger:        logger,
+		historyConfig: normalizeHistoryConfig(historyCfg),
+		nowFunc:       time.Now,
+	}
 }
 
 func (s *topologyService) BuildTopology(ctx context.Context, boardID string, timeIntervalSeconds uint64) (*models.Topology, error) {
@@ -67,25 +79,35 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, tim
 		"historicalDevices", len(historical),
 	)
 
+	devs, meshEdges := s.buildTopologyFromStates(inputs.rows, inputs.deviceInfoStatus)
 	if len(inputs.rows) == 0 {
 		// No timepoints means there is no recent data of device timepoints. We still return
 		// devices information so the caller can know "board has devices"
 		s.logger.Info("no timepoint rows; returning empty topology")
-		devs := s.buildEmptyDevicesFromDeviceInfo(inputs.deviceInfoStatus)
-		out := s.buildTopologyResponse(boardID, inputs.nowUnix, devs, historical, []models.MeshEdge{})
+		out := s.buildTopologyResponse(boardID, inputs.nowUnix, devs, historical, meshEdges)
 		return &out, nil
 	}
-
-	ownership := s.buildBSSIDOwnership(inputs.rows, inputs.deviceInfoStatus)
-	buildResult := s.buildDevicesAndMeshEdges(inputs.rows, inputs.deviceInfoStatus, ownership)
-	devs := s.buildDevicesFromDevMapAndDeviceInfo(buildResult.devMap, inputs.deviceInfoStatus)
-	meshEdges := getEdgesSliceFromMap(buildResult.meshEdgesMap)
-
-	s.sortTopology(devs, meshEdges)
 
 	out := s.buildTopologyResponse(boardID, inputs.nowUnix, devs, historical, meshEdges)
 	s.logger.Info("topology built successfully")
 	return &out, nil
+}
+
+func (s *topologyService) buildTopologyFromStates(
+	rows []analytics.TimepointsData,
+	status map[string]bool,
+) ([]models.Device, []models.MeshEdge) {
+	if len(rows) == 0 {
+		return s.buildEmptyDevicesFromDeviceInfo(status), []models.MeshEdge{}
+	}
+
+	ownership := s.buildBSSIDOwnership(rows, status)
+	buildResult := s.buildDevicesAndMeshEdges(rows, status, ownership)
+	devs := s.buildDevicesFromDevMapAndDeviceInfo(buildResult.devMap, status)
+	meshEdges := getEdgesSliceFromMap(buildResult.meshEdgesMap)
+
+	s.sortTopology(devs, meshEdges)
+	return devs, meshEdges
 }
 
 func (s *topologyService) fetchTopologyInputs(ctx context.Context, boardID string, timeIntervalSeconds uint64) (*topologyInputs, error) {
